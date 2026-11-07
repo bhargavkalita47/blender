@@ -794,6 +794,16 @@ int web_mesh_extrude_top(int handle, float delta_z)
   if (!slot || !slot->top_face) {
     return -1;
   }
+  if (!std::isfinite(delta_z)) return -2;
+  // Check every affected coordinate before the BMO changes topology.
+  // Reject whole operations atomically instead of writing INF/NaN vertices.
+  blender::BMLoop *preflight = BM_FACE_FIRST_LOOP(slot->top_face);
+  blender::BMLoop *preflight_first = preflight;
+  do {
+    const double z = double(preflight->v->co[2]) + double(delta_z);
+    if (!std::isfinite(z) || std::abs(z) > std::numeric_limits<float>::max()) return -2;
+    preflight = preflight->next;
+  } while (preflight != preflight_first);
   blender::BMOperator op;
   blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "extrude_discrete_faces");
   blender::BMO_slot_buffer_from_single(
@@ -836,6 +846,13 @@ int web_mesh_extrude_face_z(int handle, int face_index, float distance)
   int i = 0;
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
     if (i++ != face_index) continue;
+    blender::BMLoop *preflight = BM_FACE_FIRST_LOOP(face);
+    blender::BMLoop *preflight_first = preflight;
+    do {
+      const double z = double(preflight->v->co[2]) + double(distance);
+      if (!std::isfinite(z) || std::abs(z) > std::numeric_limits<float>::max()) return -2;
+      preflight = preflight->next;
+    } while (preflight != preflight_first);
     blender::BMOperator op;
     blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "extrude_discrete_faces");
     blender::BMO_slot_buffer_from_single(
