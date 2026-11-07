@@ -855,7 +855,7 @@ int web_mesh_extrude_top(int handle, float delta_z)
   blender::BMLoop *preflight_first = preflight;
   do {
     const double z = double(preflight->v->co[2]) + double(delta_z);
-    if (!std::isfinite(z) || std::abs(z) > std::numeric_limits<float>::max()) return -2;
+    if (!std::isfinite(z) || std::abs(z) > 1.0e6) return -2;
     preflight = preflight->next;
   } while (preflight != preflight_first);
   blender::BMOperator op;
@@ -904,7 +904,7 @@ int web_mesh_extrude_face_z(int handle, int face_index, float distance)
     blender::BMLoop *preflight_first = preflight;
     do {
       const double z = double(preflight->v->co[2]) + double(distance);
-      if (!std::isfinite(z) || std::abs(z) > std::numeric_limits<float>::max()) return -2;
+      if (!std::isfinite(z) || std::abs(z) > 1.0e6) return -2;
       preflight = preflight->next;
     } while (preflight != preflight_first);
     blender::BMOperator op;
