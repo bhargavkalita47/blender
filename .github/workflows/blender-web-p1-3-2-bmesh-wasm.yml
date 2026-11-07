@@ -30,6 +30,14 @@ jobs:
             tools/blender_web/wasm
           sparse-checkout-cone-mode: false
 
+      - name: Native compiler regression check for pointer-width assertion
+        shell: bash
+        run: |
+          clang++ -std=c++20 -fsyntax-only \
+            -Isource/blender/blenlib -Iintern/guardedalloc \
+            -Iintern/atomic -Iintern/profile \
+            tools/blender_web/wasm/check-resource-scope-size.cc
+
       - name: Install pinned Emscripten 4.0.12
         shell: bash
         run: |
