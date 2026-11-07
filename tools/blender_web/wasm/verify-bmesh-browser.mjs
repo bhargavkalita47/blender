@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import {createServer} from "node:http";
 import {readFile} from "node:fs/promises";
 import {resolve} from "node:path";
-import {chromium, firefox} from "playwright";
+import {chromium, firefox, webkit} from "playwright";
 
 const out = resolve(process.argv[2] || "build/blender_web/bmesh_wasm");
 const libraryRoot = resolve("tools/blender_web/wasm");
@@ -38,7 +38,7 @@ await new Promise((accept, reject) => {
 const port = server.address().port;
 const results = [];
 try {
-  for (const [name, engine] of [["chromium",chromium],["firefox",firefox]]) {
+  for (const [name, engine] of [["chromium",chromium],["firefox",firefox],["webkit",webkit]]) {
     const browser = await engine.launch({headless:true});
     try {
       const page = await browser.newPage();
@@ -103,8 +103,10 @@ try {
         final_indices:data.final_indices, stress_cycles:data.stress_cycles}));
     } finally { await browser.close(); }
   }
-  assert.deepEqual(results[0].final_geometry,results[1].final_geometry,
-    "Two browsers must receive identical Blender-owned mesh data");
+  for (const result of results.slice(1)) {
+    assert.deepEqual(results[0].final_geometry, result.final_geometry,
+      "All browser engines must receive identical Blender-owned mesh data");
+  }
   console.log(JSON.stringify({status:"pass",stage:"Phase 1.3.3 browser compatibility",
     browsers:results.map(r=>r.name),geometry_identical:true}));
 } finally {
