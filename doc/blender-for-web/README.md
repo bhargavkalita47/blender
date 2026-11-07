@@ -29,6 +29,14 @@
 | 3.2 — Viewport & interaction | Browser graphics, selection and tools | Interactive 3D editing viewport |
 | 3.3 — Product integration | UI, persistence, import/export, optimization | Deployable tested web modeling application |
 
+## Phase 2 progress
+
+- [2.1 — Component classification (merged)](phase-2/2.1-classification.md)
+- [2.2 — Reversible extraction experiment (not build-verified)](phase-2/2.2-extraction.md)
+- [2.3 — Stabilization tests and exit gate (not executed)](phase-2/2.3-stabilization.md)
+
+**Phase 2 remains incomplete:** no independently linked core or native regression logs yet. The experimental headless CMake profile is not an extracted engine.
+
 ## Phase 1 records
 
 - [1.1 — Architecture and feature mapping](phase-1/1.1-architecture.md)
