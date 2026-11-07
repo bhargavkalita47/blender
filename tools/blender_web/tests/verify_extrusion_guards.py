@@ -18,6 +18,10 @@ assert core.web_mesh_api_version_major() == 0
 assert core.web_mesh_api_version_minor() >= 1
 assert core.web_mesh_max_live_meshes() == 16
 assert core.web_mesh_live_count() == 0
+for _ in range(16):
+    warmup = core.web_mesh_create_cube()
+    assert warmup > 0
+    assert core.web_mesh_destroy(warmup) == 0
 baseline = core.web_mesh_memory_bytes()
 h = core.web_mesh_create_cube()
 assert h > 0
