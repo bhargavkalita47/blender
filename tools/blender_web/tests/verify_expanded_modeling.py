@@ -23,6 +23,8 @@ core.web_mesh_transform_selected.argtypes = [ctypes.c_int, ctypes.c_int,
 core.web_mesh_transform_selected.restype = ctypes.c_int
 core.web_mesh_delete_face.argtypes = [ctypes.c_int, ctypes.c_int]
 core.web_mesh_delete_face.restype = ctypes.c_int
+core.web_mesh_poke_face.argtypes = [ctypes.c_int, ctypes.c_int]
+core.web_mesh_poke_face.restype = ctypes.c_int
 
 FIXTURES = [
     ("grid_3x2", lambda: core.web_mesh_create_grid(3, 2), (12, 17, 6, 24, 12)),
@@ -99,6 +101,17 @@ def main():
 
     plane = core.web_mesh_create_plane()
     assert plane > 0
+    assert core.web_mesh_poke_face(plane, -1) == -2
+    assert core.web_mesh_poke_face(plane, 0) == 0
+    poked = snapshot(plane)
+    assert (poked["verts"],poked["edges"],poked["faces"],
+            poked["loops"],poked["triangles"]) == (5,8,4,12,4), poked
+    assert core.web_mesh_validate_topology(plane)==0
+    assert core.web_mesh_destroy(plane)==0
+    assert core.web_mesh_poke_face(plane, 0)==-1
+
+    plane = core.web_mesh_create_plane()
+    assert plane > 0
     assert core.web_mesh_delete_face(plane, 0) == 0
     assert [getattr(core,f"web_mesh_{key}")(plane)
             for key in ("verts","edges","faces","loops")] == [0,0,0,0]
@@ -125,7 +138,8 @@ def main():
         "status":"pass", "fixtures":{name:list(expected) for name,_,expected in FIXTURES},
         "reference_cases":reference_cases,
         "new_primitive_lifecycle_cycles":600, "vertex_selection_transforms":True,
-        "face_deletion":True, "multi_mesh_independence":True,
+        "face_deletion":True, "original_blender_bmo_poke":True,
+        "multi_mesh_independence":True,
         "invalid_parameters_rejected":True, "tracked_allocations_before":baseline,
         "tracked_allocations_after":core.web_mesh_memory_bytes()
     },sort_keys=True))
