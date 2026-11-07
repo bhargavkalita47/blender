@@ -57,7 +57,8 @@ def plane_coverage(faces):
     """Covers surfaces by directed plane, independent of quad split diagonal."""
     acc = {}
     for face in faces:
-        n = tuple(round(float(x), 4) for x in face["normal"])
+        n = tuple(0.0 if abs(float(x)) < 1e-6 else round(float(x), 4)
+                  for x in face["normal"])
         p = face["loop"][0]
         height = round(sum(n[i] * p[i] for i in range(3)), 4)
         k = (n, height)
