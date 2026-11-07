@@ -82,8 +82,8 @@ jobs:
       - name: Reject nonfinite extrusion before BMesh topology mutation
         run: |
           set -o pipefail
-          python3 tools/blender_web/tests/verify_extrusion_guards.py \\
-            build/blender_web/native_core/libblender_web_native_core.so \\
+          python3 tools/blender_web/tests/verify_extrusion_guards.py \
+            build/blender_web/native_core/libblender_web_native_core.so \
             | tee build/blender_web/extrusion-guards.log
 
       - name: Download official Blender 5.4 Alpha executable built from exact source commit
