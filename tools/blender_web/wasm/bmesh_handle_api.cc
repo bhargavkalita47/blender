@@ -81,6 +81,132 @@ bool create_cube(blender::BMesh *bm, blender::BMFace **top)
   return bm->totvert == 8 && bm->totedge == 12 && bm->totface == 6 && bm->totloop == 24;
 }
 
+// The primitive adapters construct topology ONLY with original Blender
+// BM_vert_create/BM_face_create_verts. Parameters are deliberately bounded.
+int create_extended_primitive(int kind, int segments, int rings)
+{
+  if ((kind == 1 && (segments < 1 || segments > 32 || rings < 1 || rings > 32)) ||
+      (kind == 2 && (segments < 3 || segments > 64)) ||
+      (kind == 3 && (segments < 3 || segments > 64 || rings < 3 || rings > 32))) {
+    return -4;
+  }
+  unsigned index = kCapacity;
+  for (unsigned i = 0; i < kCapacity; ++i) {
+    if (!slots[i].mesh) { index = i; break; }
+  }
+  if (index == kCapacity) return -3;
+  const blender::BMeshCreateParams params{true};
+  blender::BMesh *bm = blender::BM_mesh_create(&blender::bm_mesh_allocsize_default, &params);
+  if (!bm) return -2;
+  bool ok = true;
+  blender::BMFace *cap = nullptr;
+  const auto vertex = [&](float x, float y, float z) {
+    const float co[3] = {x, y, z};
+    return blender::BM_vert_create(bm, co, nullptr, blender::BM_CREATE_NOP);
+  };
+  const auto face = [&](std::vector<blender::BMVert *> &v) -> blender::BMFace * {
+    if (v.size() < 3) return nullptr;
+    return blender::BM_face_create_verts(
+        bm, v.data(), int(v.size()), nullptr, blender::BM_CREATE_NOP, true);
+  };
+  constexpr double pi = 3.1415926535897932384626433832795;
+  if (kind == 1) {
+    // Regular 2x2 XY grid with X/Y segment counts.
+    std::vector<blender::BMVert *> v;
+    v.reserve(size_t(segments + 1) * size_t(rings + 1));
+    for (int y = 0; y <= rings && ok; ++y) {
+      for (int x = 0; x <= segments && ok; ++x) {
+        auto *p = vertex(float(2.0 * x / segments - 1.0),
+                         float(2.0 * y / rings - 1.0), 0.0f);
+        ok = p != nullptr;
+        v.push_back(p);
+      }
+    }
+    for (int y = 0; y < rings && ok; ++y) {
+      for (int x = 0; x < segments && ok; ++x) {
+        const int a = y * (segments + 1) + x;
+        std::vector<blender::BMVert *> q = {
+            v[a], v[a + 1], v[a + segments + 2], v[a + segments + 1]};
+        ok = face(q) != nullptr;
+      }
+    }
+  }
+  else if (kind == 2) {
+    // Cylinder radius=1, z=[-1,+1], closed by convex n-gon caps.
+    std::vector<blender::BMVert *> bottom, top;
+    bottom.reserve(segments);
+    top.reserve(segments);
+    for (int i = 0; i < segments && ok; ++i) {
+      double phi = 2.0 * pi * i / segments;
+      float x = float(std::cos(phi)), y = float(std::sin(phi));
+      auto *b = vertex(x, y, -1.0f), *t = vertex(x, y, 1.0f);
+      ok = b != nullptr && t != nullptr;
+      bottom.push_back(b);
+      top.push_back(t);
+    }
+    for (int i = 0; i < segments && ok; ++i) {
+      const int j = (i + 1) % segments;
+      std::vector<blender::BMVert *> q = {bottom[i], bottom[j], top[j], top[i]};
+      ok = face(q) != nullptr;
+    }
+    if (ok) {
+      std::vector<blender::BMVert *> bottom_rev(bottom.rbegin(), bottom.rend());
+      ok = face(bottom_rev) != nullptr;
+    }
+    if (ok) cap = face(top);
+    ok = ok && cap;
+  }
+  else if (kind == 3) {
+    // UV sphere longitude segments and latitude intervals.
+    blender::BMVert *north = vertex(0.0f, 0.0f, 1.0f);
+    ok = north != nullptr;
+    std::vector<std::vector<blender::BMVert *>> levels;
+    for (int j = 1; j < rings && ok; ++j) {
+      const double theta = pi * j / rings;
+      const double radius = std::sin(theta), z = std::cos(theta);
+      std::vector<blender::BMVert *> ring;
+      for (int i = 0; i < segments && ok; ++i) {
+        const double phi = 2.0 * pi * i / segments;
+        auto *p = vertex(float(radius * std::cos(phi)),
+                         float(radius * std::sin(phi)), float(z));
+        ok = p != nullptr;
+        ring.push_back(p);
+      }
+      levels.push_back(std::move(ring));
+    }
+    blender::BMVert *south = ok ? vertex(0.0f, 0.0f, -1.0f) : nullptr;
+    ok = ok && south;
+    for (int i = 0; i < segments && ok; ++i) {
+      int next = (i + 1) % segments;
+      std::vector<blender::BMVert *> tri = {
+          north, levels.front()[i], levels.front()[next]};
+      ok = face(tri) != nullptr;
+    }
+    for (int j = 0; j + 1 < int(levels.size()) && ok; ++j) {
+      for (int i = 0; i < segments && ok; ++i) {
+        int next = (i + 1) % segments;
+        std::vector<blender::BMVert *> q = {
+            levels[j][i], levels[j + 1][i],
+            levels[j + 1][next], levels[j][next]};
+        ok = face(q) != nullptr;
+      }
+    }
+    for (int i = 0; i < segments && ok; ++i) {
+      int next = (i + 1) % segments;
+      std::vector<blender::BMVert *> tri = {
+          south, levels.back()[next], levels.back()[i]};
+      ok = face(tri) != nullptr;
+    }
+  }
+  if (!ok) {
+    blender::BM_mesh_free(bm);
+    return -2;
+  }
+  slots[index].mesh = bm;
+  slots[index].top_face = cap;
+  return make_handle(index);
+}
+
 }  // namespace
 
 extern "C" {
@@ -156,6 +282,21 @@ int web_mesh_create_plane()
   slots[index].mesh = bm;
   slots[index].top_face = nullptr;  // Closed-cube top-cap extrusion is not available.
   return make_handle(index);
+}
+
+int web_mesh_create_grid(int x_segments, int y_segments)
+{
+  return create_extended_primitive(1, x_segments, y_segments);
+}
+
+int web_mesh_create_cylinder(int segments)
+{
+  return create_extended_primitive(2, segments, 0);
+}
+
+int web_mesh_create_uv_sphere(int segments, int rings)
+{
+  return create_extended_primitive(3, segments, rings);
 }
 
 int web_mesh_translate(int handle, float dx, float dy, float dz)
