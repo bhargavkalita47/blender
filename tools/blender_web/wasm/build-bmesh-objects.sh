@@ -170,6 +170,10 @@ SUPPORT=(
   source/blender/blenlib/intern/task_iterator.cc
   source/blender/blenlib/intern/math_matrix_c.cc
   source/blender/bmesh/intern/bmesh_polygon.cc
+  source/blender/blenlib/intern/BLI_ghash_utils.cc
+  source/blender/blenlib/intern/task_pool.cc
+  source/blender/blenlib/intern/task_scheduler.cc
+  source/blender/blenlib/intern/math_geom.cc
 )
 SUPPORT_OBJECTS=()
 support_failed=0
