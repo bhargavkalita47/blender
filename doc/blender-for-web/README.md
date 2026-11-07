@@ -1,6 +1,6 @@
 # Blender for Web — Project Engineering Index
 
-> Status: Phase 1.1 architecture mapping merged. Phase 1.2 static research deliverables prepared on `dev/p1-dependencies`; source/link configuration validation remains in Phase 1.3.
+> Status: Phase 1.1 complete; Phase 1.2 static dependency research and CI verified; Phase 1.3.1 BLI-to-WASM smoke test passed. Full native Blender configuration and BMesh portability remain outstanding.
 >
 > Source baseline: Blender **5.4 Alpha** (`BLENDER_VERSION 504`, cycle `alpha`), commit `67e5a5f874cf37e2a114cebd24f219d8c44a16ad`.
 >
@@ -37,10 +37,11 @@
 - [1.2 — Cuboid/BMesh source paths](phase-1/1.2-source-closure.md)
 - [1.2 — Native closure verification handoff](phase-1/1.2-validation-handoff.md)
 - [1.2 — Executed CI verification and remaining linker blocker](phase-1/1.2-ci-verification.md)
+- [1.3.1 — Blender BLI WASM smoke test (verified)](phase-1/1.3.1-bli-wasm.md)
 
 ## Evidence and limitations
 
-Documented conclusions must distinguish **CMake target links**, **source include/symbol dependencies** and **actual runtime needs**. A target-level edge does not prove that a feature uses a dependency at runtime. Phase 1.1 documents verified representative source paths; it is **not** a file-by-file or link-tested dependency closure. No native or WebAssembly compilation is claimed at this stage.
+Documented conclusions must distinguish **CMake target links**, **source include/symbol dependencies** and **actual runtime needs**. A target-level edge does not prove that a feature uses a dependency at runtime. Phase 1.1 documents verified representative source paths; it is **not** a file-by-file or link-tested dependency closure. A small genuine Blender BLI implementation has now compiled and executed in WebAssembly in Node.js. This does not demonstrate BMesh portability, a browser viewport or a successful native Blender core build.
 
 ### Architecture decision log
 
