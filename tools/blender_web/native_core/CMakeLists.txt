@@ -147,8 +147,15 @@ target_compile_options(blender_web_native_core PRIVATE
   -funsigned-char -ffunction-sections -fdata-sections)
 target_link_libraries(blender_web_native_core PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_link_options(blender_web_native_core PRIVATE
-    "-Wl,--no-undefined" "-Wl,--gc-sections")
+  if(BLENDER_WEB_SANITIZE)
+    # Clang's shared ASan build resolves sanitizer instrumentation from the
+    # instrumented C/C++ test executables, not from a standalone shared runtime.
+    # --no-undefined applies to the ordinary shipping target, not this job.
+    target_link_options(blender_web_native_core PRIVATE "-Wl,--gc-sections")
+  else()
+    target_link_options(blender_web_native_core PRIVATE
+      "-Wl,--no-undefined" "-Wl,--gc-sections")
+  endif()
 endif()
 
 add_executable(blender_web_native_smoke
