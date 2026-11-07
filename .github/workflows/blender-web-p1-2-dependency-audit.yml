@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - dev/p1-dependency-verification
+      - blender-for-web
   workflow_dispatch:
 
 permissions:
