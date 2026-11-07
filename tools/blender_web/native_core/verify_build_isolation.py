@@ -37,7 +37,9 @@ must_include = [
 ]
 missing = sorted(set(must_include) - set(source_relative))
 assert not missing, f"Missing original Blender translation units: {missing}"
-assert len(sources) == 48, f"Expected 46 original+adapter source files and one smoke: {len(sources)}"
+# 53 original source files + 1 ABI bridge + 1 smoke executable, after
+# adding the original BLI/translation implementations required by BMO edits.
+assert len(sources) == 55, f"Expected 53 original Blender sources + bridge + smoke, got {len(sources)}"
 forbidden_prefixes = (
     "source/blender/draw/",
     "source/blender/gpu/",
