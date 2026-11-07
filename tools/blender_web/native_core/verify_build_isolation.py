@@ -25,6 +25,7 @@ for path in sources:
 must_include = [
     "source/blender/bmesh/intern/bmesh_mesh.cc",
     "source/blender/bmesh/operators/bmo_poke.cc",
+    "source/blender/bmesh/intern/bmesh_interp.cc",
     "source/blender/bmesh/intern/bmesh_structure.cc",
     "source/blender/blenkernel/intern/customdata.cc",
     "intern/guardedalloc/intern/mallocn.cc",
@@ -33,7 +34,7 @@ must_include = [
 ]
 missing = sorted(set(must_include) - set(source_relative))
 assert not missing, f"Missing original Blender translation units: {missing}"
-assert len(sources) == 44, f"Expected 42 original+adapter source files and one smoke: {len(sources)}"
+assert len(sources) == 45, f"Expected 43 original+adapter source files and one smoke: {len(sources)}"
 forbidden_prefixes = (
     "source/blender/draw/",
     "source/blender/gpu/",
