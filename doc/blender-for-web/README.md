@@ -1,6 +1,6 @@
 # Blender for Web — Project Engineering Index
 
-> Status: Phase 1.1 architecture complete; Phase 1.2 static dependency research and CI verified, with native OpenColorIO/CMake linker closure still blocked. Phase 1.3.1–1.3.4 isolated Blender-owned WASM feasibility, lifetime tests, mesh transfer and real-browser compatibility passed. Phase 2.1 component classification is complete. Phase 2.2 has begun on `dev/p2-core-extraction` with an opt-in standalone original-Blender native BMesh target and CI acceptance gates (native results pending). Phase 2.3 native stabilization remains unfinished.
+> Status: Phase 1.1 architecture complete; Phase 1.2 static dependency research and CI verified, with native OpenColorIO/CMake linker closure still blocked. Phase 1.3.1–1.3.4 isolated Blender-owned WASM feasibility, lifetime tests, mesh transfer and real-browser compatibility passed. Phase 2.1 component classification is complete. Phase 2.2 is active on `dev/p2-core-extraction`: the first independently linked original-Blender native BMesh library and 1,000-cycle CI runtime/isolation checks have passed. General-core extraction and native/reference parity remain incomplete. Phase 2.3 native stabilization remains unfinished.
 >
 > Source baseline: Blender **5.4 Alpha** (`BLENDER_VERSION 504`, cycle `alpha`), commit `67e5a5f874cf37e2a114cebd24f219d8c44a16ad`.
 >
