@@ -22,6 +22,8 @@ int main(void)
   assert(caps & BLENDER_WEB_CAP_LOOP_UV);
   assert(caps & BLENDER_WEB_CAP_TRIANGLE_CORNERS);
   assert(caps & BLENDER_WEB_CAP_PLANAR_NGON);
+  assert(caps & BLENDER_WEB_CAP_NAMED_UV);
+  assert(caps & BLENDER_WEB_CAP_FACE_NORMALS);
   assert(web_mesh_live_count() == 0);
 
   const int plane = web_mesh_create_plane();
@@ -47,6 +49,25 @@ int main(void)
   float uv[8] = {0};
   assert(web_mesh_copy_uvs(plane, uv, 8) == 8);
   assert(uv[0] == .25f && uv[1] == .75f);
+  assert(web_mesh_face_normal_float_count(plane) == 3);
+  float plane_normal[3] = {0};
+  assert(web_mesh_copy_face_normals(plane, plane_normal, 3) == 3);
+  assert(plane_normal[0] == 0.f && plane_normal[1] == 0.f);
+  assert(fabsf(plane_normal[2] - 1.f) < 1e-6f);
+  assert(web_mesh_copy_face_normals(plane, plane_normal, 2) == -2);
+  assert(web_mesh_named_uv_layer_count(plane) == 1);
+  assert(web_mesh_uv_layer_ensure_named(plane, "Detail") == 0);
+  assert(web_mesh_uv_layer_ensure_named(plane, "Detail") == 0);
+  assert(web_mesh_named_uv_layer_count(plane) == 2);
+  assert(web_mesh_set_uv_named(plane, "Detail", 0, 0, .5f, .125f) == 0);
+  float detail[8] = {0};
+  assert(web_mesh_copy_uvs_named(plane, "Detail", detail, 8) == 8);
+  assert(detail[0] == .5f && detail[1] == .125f);
+  assert(web_mesh_copy_uvs(plane, uv, 8) == 8);
+  assert(uv[0] == .25f && uv[1] == .75f);
+  assert(web_mesh_uv_layer_ensure_named(plane, "bad name") == -4);
+  assert(web_mesh_set_uv_named(plane, "missing", 0, 0, 0.f, 0.f) == -3);
+
 
   /* A concave pentagon cannot be triangulated correctly by a naive fan.
    * Blender's BMesh tessellation must preserve its six-unit polygon area.
