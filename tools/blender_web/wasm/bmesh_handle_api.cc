@@ -353,6 +353,62 @@ int web_mesh_select_vertex(int handle, int index, int selected)
   return -3;
 }
 
+int web_mesh_selected_vert_count(int handle);
+int web_mesh_delete_face(int handle, int index);
+
+int web_mesh_select_element(int handle, int kind, int index, int selected)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (kind < 1 || kind > 3 || (selected != 0 && selected != 1) || index < 0)
+    return -2;
+  blender::BMIter iter;
+  int i = 0;
+  if (kind == 1) return web_mesh_select_vertex(handle, index, selected);
+  if (kind == 2) {
+    blender::BMEdge *edge = nullptr;
+    BM_ITER_MESH (edge, &iter, slot->mesh, blender::BM_EDGES_OF_MESH) {
+      if (i++ == index) {
+        blender::BM_edge_select_set(slot->mesh, edge, selected != 0);
+        return 0;
+      }
+    }
+  }
+  else {
+    blender::BMFace *face = nullptr;
+    BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+      if (i++ == index) {
+        blender::BM_face_select_set(slot->mesh, face, selected != 0);
+        return 0;
+      }
+    }
+  }
+  return -2;
+}
+
+int web_mesh_selected_element_count(int handle, int kind)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (kind < 1 || kind > 3) return -2;
+  blender::BMIter iter;
+  int count = 0;
+  if (kind == 1) return web_mesh_selected_vert_count(handle);
+  if (kind == 2) {
+    blender::BMEdge *edge = nullptr;
+    BM_ITER_MESH (edge, &iter, slot->mesh, blender::BM_EDGES_OF_MESH) {
+      if (BM_elem_flag_test(edge, blender::BM_ELEM_SELECT)) ++count;
+    }
+  }
+  else {
+    blender::BMFace *face = nullptr;
+    BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+      if (BM_elem_flag_test(face, blender::BM_ELEM_SELECT)) ++count;
+    }
+  }
+  return count;
+}
+
 int web_mesh_selected_vert_count(int handle)
 {
   MeshSlot *slot = get_slot(handle);
@@ -470,6 +526,39 @@ int web_mesh_inset_face(int handle, int index, float thickness)
   return -3;
 }
 #endif
+
+// Delete vertices, edges or faces using the original Blender BMesh kernels.
+// Element indices are snapshot-order only and invalid after topology edits.
+int web_mesh_delete_element(int handle, int kind, int index)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (kind < 1 || kind > 3 || index < 0) return -2;
+  if (kind == 3) return web_mesh_delete_face(handle, index);
+  blender::BMIter iter;
+  int i = 0;
+  if (kind == 1) {
+    blender::BMVert *vert = nullptr;
+    BM_ITER_MESH (vert, &iter, slot->mesh, blender::BM_VERTS_OF_MESH) {
+      if (i++ == index) {
+        slot->top_face = nullptr;
+        blender::BM_vert_kill(slot->mesh, vert);
+        return 0;
+      }
+    }
+  }
+  else {
+    blender::BMEdge *edge = nullptr;
+    BM_ITER_MESH (edge, &iter, slot->mesh, blender::BM_EDGES_OF_MESH) {
+      if (i++ == index) {
+        slot->top_face = nullptr;
+        blender::BM_edge_kill(slot->mesh, edge);
+        return 0;
+      }
+    }
+  }
+  return -2;
+}
 
 int web_mesh_delete_face(int handle, int index)
 {
