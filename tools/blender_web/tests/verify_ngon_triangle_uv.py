@@ -31,6 +31,12 @@ lib.web_mesh_copy_triangle_corners.argtypes = [I, C.POINTER(U), I]
 lib.web_mesh_copy_uvs.argtypes = [I, C.POINTER(F), I]
 lib.web_mesh_set_uv.argtypes = [I, I, I, F, F]
 lib.web_mesh_translate.argtypes = [I, F, F, F]
+lib.web_mesh_named_uv_layer_count.argtypes = [I]
+lib.web_mesh_uv_layer_ensure_named.argtypes = [I, C.c_char_p]
+lib.web_mesh_set_uv_named.argtypes = [I, C.c_char_p, I, I, F, F]
+lib.web_mesh_copy_uvs_named.argtypes = [I, C.c_char_p, C.POINTER(F), I]
+lib.web_mesh_face_normal_float_count.argtypes = [I]
+lib.web_mesh_copy_face_normals.argtypes = [I, C.POINTER(F), I]
 lib.web_mesh_live_count.restype = I
 lib.web_mesh_memory_bytes.restype = I
 
@@ -147,6 +153,55 @@ def main():
         assert uv[2 * corner + 1] == F((corner % 4) / 8).value
     assert lib.web_mesh_destroy(h) == 0
 
+    # Named layers are real independent Blender CustomData blocks. The UVMap
+    # default stays intact when new layers are added and independently edited.
+    h = new_polygon(cases["concave_pentagon"])
+    assert h > 0
+    assert lib.web_mesh_uv_layer_ensure(h) == 0
+    assert lib.web_mesh_named_uv_layer_count(h) == 1
+    assert lib.web_mesh_set_uv(h, 0, 0, F(.25), F(.75)) == 0
+    for name in (b"Lightmap", b"Detail"):
+        assert lib.web_mesh_uv_layer_ensure_named(h, name) == 0
+        assert lib.web_mesh_uv_layer_ensure_named(h, name) == 0
+    assert lib.web_mesh_named_uv_layer_count(h) == 3
+    assert lib.web_mesh_set_uv_named(h, b"Lightmap", 0, 0, F(.5), F(.125)) == 0
+    assert lib.web_mesh_set_uv_named(h, b"Detail", 0, 0, F(.875), F(.625)) == 0
+    base = (F * 10)()
+    lightmap = (F * 10)()
+    detail = (F * 10)()
+    assert lib.web_mesh_copy_uvs(h, base, 10) == 10
+    assert lib.web_mesh_copy_uvs_named(h, b"Lightmap", lightmap, 10) == 10
+    assert lib.web_mesh_copy_uvs_named(h, b"Detail", detail, 10) == 10
+    assert list(base[:2]) == [.25, .75]
+    assert list(lightmap[:2]) == [.5, .125]
+    assert list(detail[:2]) == [.875, .625]
+    assert lib.web_mesh_copy_uvs_named(h, b"Detail", detail, 9) == -2
+    assert lib.web_mesh_copy_uvs_named(h, b"Missing", detail, 10) == -3
+    assert lib.web_mesh_uv_layer_ensure_named(h, b"bad name") == -4
+    assert lib.web_mesh_uv_layer_ensure_named(h, b"") == -4
+    assert lib.web_mesh_uv_layer_ensure_named(h, b"a" * 64) == -4
+    for i in range(5):
+        assert lib.web_mesh_uv_layer_ensure_named(h, f"Layer{i}".encode()) == 0
+    assert lib.web_mesh_named_uv_layer_count(h) == 8
+    assert lib.web_mesh_uv_layer_ensure_named(h, b"LayerOverflow") == -5
+    assert lib.web_mesh_translate(h, F(.25), F(-.5), F(1.0)) == 0
+    assert lib.web_mesh_copy_uvs_named(h, b"Detail", detail, 10) == 10
+    assert list(detail[:2]) == [.875, .625]
+    assert lib.web_mesh_face_normal_float_count(h) == 3
+    normal = (F * 3)()
+    assert lib.web_mesh_copy_face_normals(h, normal, 3) == 3
+    assert abs(normal[0]) < 1e-6 and abs(normal[1]) < 1e-6
+    assert math.isclose(normal[2], 1.0, abs_tol=1e-6)
+    assert lib.web_mesh_copy_face_normals(h, normal, 2) == -2
+    assert lib.web_mesh_destroy(h) == 0
+    assert lib.web_mesh_copy_face_normals(h, normal, 3) == -1
+
+    clockwise = new_polygon(cases["reversed_concave"])
+    assert clockwise > 0
+    assert lib.web_mesh_copy_face_normals(clockwise, normal, 3) == 3
+    assert math.isclose(normal[2], -1.0, abs_tol=1e-6)
+    assert lib.web_mesh_destroy(clockwise) == 0
+
     # Native GuardedAlloc baseline and object table capacity, including stale IDs.
     warmup = new_polygon(cases["concave_pentagon"])
     assert warmup > 0
@@ -173,6 +228,9 @@ def main():
         "reference": "source-pinned original Blender BM_face_calc_tessellation",
         "concave_area_results": area_results,
         "triangle_corner_uv_seams": True,
+        "bounded_named_uv_layers": True,
+        "independent_uv_domains": True,
+        "source_backed_face_normals": True,
         "invalid_geometry_rejected": True,
         "native_capacity_checked": 16,
         "lifecycle_cycles": 200,
