@@ -44,7 +44,7 @@ INC=(
 # wasm32 experiment, plain char must be unsigned to represent 128. This is
 # a build-mode compatibility setting, not a source-model rewrite. Revalidate
 # serialized DNA semantics before any production release.
-FLAGS=(-std=c++20 -O0 -g0 -DNDEBUG -funsigned-char -DFMT_HEADER_ONLY)
+FLAGS=(-std=c++20 -O0 -g0 -DNDEBUG -funsigned-char -DFMT_HEADER_ONLY -DBLENDER_WEB_MINIMAL_BMO)
 # Make only the native package's header-only fmt files visible to the Emscripten
 # target. Do NOT add /usr/include globally: host libc headers are incompatible
 # with the wasm32 target sysroot.
@@ -158,6 +158,12 @@ SUPPORT=(
   source/blender/blenkernel/intern/mesh_normals.cc
   source/blender/blenkernel/intern/multires.cc
   source/blender/blenkernel/intern/customdata_file.cc
+  source/blender/bmesh/intern/bmesh_delete.cc
+  source/blender/bmesh/intern/bmesh_marking.cc
+  source/blender/bmesh/intern/bmesh_mesh_normals.cc
+  source/blender/bmesh/intern/bmesh_opdefines.cc
+  source/blender/bmesh/operators/bmo_dupe.cc
+  source/blender/bmesh/operators/bmo_extrude.cc
 )
 SUPPORT_OBJECTS=()
 support_failed=0
