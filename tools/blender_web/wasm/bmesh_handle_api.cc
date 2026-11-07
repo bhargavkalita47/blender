@@ -332,6 +332,101 @@ int web_mesh_translate(int handle, float dx, float dy, float dz)
   return 0;
 }
 
+// Phase 2.2.3 element editing: vertex indices are enumeration-order IDs.
+// They are deliberately NOT persistent across topology mutation.
+int web_mesh_select_vertex(int handle, int index, int selected)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (index < 0 || index >= slot->mesh->totvert || (selected != 0 && selected != 1)) {
+    return -2;
+  }
+  blender::BMIter iter;
+  blender::BMVert *vert = nullptr;
+  int i = 0;
+  BM_ITER_MESH (vert, &iter, slot->mesh, blender::BM_VERTS_OF_MESH) {
+    if (i++ == index) {
+      blender::BM_vert_select_set(slot->mesh, vert, selected != 0);
+      return 0;
+    }
+  }
+  return -3;
+}
+
+int web_mesh_selected_vert_count(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  blender::BMIter iter;
+  blender::BMVert *vert = nullptr;
+  int count = 0;
+  BM_ITER_MESH (vert, &iter, slot->mesh, blender::BM_VERTS_OF_MESH) {
+    if (BM_elem_flag_test(vert, blender::BM_ELEM_SELECT)) ++count;
+  }
+  return count;
+}
+
+int web_mesh_transform_selected(int handle, int kind, float a, float b, float c)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (kind < 1 || kind > 3 || !std::isfinite(a) || !std::isfinite(b) ||
+      !std::isfinite(c)) return -2;
+  if (kind == 2 && a <= 0.0f) return -2; // positive uniform scale
+  const double cosine = std::cos(double(a)), sine = std::sin(double(a));
+  const auto transform = [&](const blender::BMVert *v, double p[3]) {
+    const double x = v->co[0], y = v->co[1], z = v->co[2];
+    if (kind == 1) {
+      p[0] = x + a; p[1] = y + b; p[2] = z + c;
+    }
+    else if (kind == 2) {
+      p[0] = x * a; p[1] = y * a; p[2] = z * a;
+    }
+    else {
+      p[0] = x * cosine - y * sine;
+      p[1] = x * sine + y * cosine;
+      p[2] = z;
+    }
+  };
+  blender::BMIter iter;
+  blender::BMVert *vert = nullptr;
+  BM_ITER_MESH (vert, &iter, slot->mesh, blender::BM_VERTS_OF_MESH) {
+    if (!BM_elem_flag_test(vert, blender::BM_ELEM_SELECT)) continue;
+    double p[3]{};
+    transform(vert, p);
+    for (double value : p) {
+      if (!std::isfinite(value) ||
+          std::abs(value) > double(std::numeric_limits<float>::max())) return -3;
+    }
+  }
+  BM_ITER_MESH (vert, &iter, slot->mesh, blender::BM_VERTS_OF_MESH) {
+    if (!BM_elem_flag_test(vert, blender::BM_ELEM_SELECT)) continue;
+    double p[3]{};
+    transform(vert, p);
+    for (int i = 0; i < 3; ++i) vert->co[i] = float(p[i]);
+  }
+  return 0;
+}
+
+int web_mesh_delete_face(int handle, int index)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (index < 0 || index >= slot->mesh->totface) return -2;
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    if (i++ == index) {
+      // Always clear this convenience pointer before invalidating any face.
+      slot->top_face = nullptr;
+      blender::BM_face_kill_loose(slot->mesh, face);
+      return 0;
+    }
+  }
+  return -3;
+}
+
 int web_mesh_destroy(int handle)
 {
   MeshSlot *slot = get_slot(handle);
