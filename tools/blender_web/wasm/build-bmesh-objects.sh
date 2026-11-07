@@ -93,7 +93,7 @@ em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
   -Wl,--gc-sections \
   -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,node \
   -sALLOW_MEMORY_GROWTH=1 -sERROR_ON_UNDEFINED_SYMBOLS=1 \
-  -sEXPORTED_FUNCTIONS='["_web_bmesh_square_vertex_degree","_web_bmesh_square_validate","_web_bmesh_after_edge_remove","_web_bmesh_after_vertex_relink"]' \
+  -sEXPORTED_FUNCTIONS='["_web_bmesh_square_vertex_degree","_web_bmesh_square_edge_exists","_web_bmesh_square_validate","_web_bmesh_after_edge_remove","_web_bmesh_after_vertex_relink"]' \
   -o "$OUT/bmesh_disk.mjs" > "$OUT/bmesh-disk-link.log" 2>&1 || {
     cat "$OUT/bmesh-disk-link.log"
     exit 1
