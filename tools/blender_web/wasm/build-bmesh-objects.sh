@@ -174,3 +174,34 @@ else
   printf '{"compile_support_failures":%d,"link_attempted":false}\n' "$support_failed" > "$OUT/lifecycle-expanded-status.json"
   echo "Unable to run expanded link: some original support files are not yet compile-ready."
 fi
+
+# Second escalation: isolate BM_mesh_create alone. Uses original Blender
+# allocator/BLI/BKE implementations and GC-sections to eliminate unreferenced
+# Blender desktop/lifecycle code. Not a replacement for proper BM_mesh_free.
+if [[ -f "$OUT/dep_customdata.cc.o" ]]; then
+  echo "::group::Diagnostic: create one empty BMesh via actual Blender code in WASM"
+  if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+    "$OUT/bmesh_mesh_lifecycle.o" \
+    "$OUT/dep_mallocn.cc.o" \
+    "$OUT/dep_mallocn_lockfree_impl.cc.o" \
+    "$OUT/dep_BLI_mempool.cc.o" \
+    "$OUT/dep_customdata.cc.o" \
+    "$ROOT/tools/blender_web/wasm/bmesh_allocation_probe.cc" \
+    -Wl,--gc-sections -Wl,--error-limit=0 \
+    -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
+    -sERROR_ON_UNDEFINED_SYMBOLS=1 \
+    -sEXPORTED_FUNCTIONS='["_web_bmesh_create_one_empty_mesh"]' \
+    -o "$OUT/bmesh_alloc.mjs" > "$OUT/bmesh-alloc-link.log" 2>&1; then
+      if node "$ROOT/tools/blender_web/wasm/verify-bmesh-allocation.mjs" "$OUT" > "$OUT/bmesh-alloc-run.log" 2>&1; then
+        echo '{"link_success":true,"runtime_success":true}' > "$OUT/allocation-probe-status.json"
+        cat "$OUT/bmesh-alloc-run.log"
+      else
+        echo '{"link_success":true,"runtime_success":false}' > "$OUT/allocation-probe-status.json"
+        cat "$OUT/bmesh-alloc-run.log"
+      fi
+  else
+      echo '{"link_success":false,"runtime_success":false}' > "$OUT/allocation-probe-status.json"
+      grep -E "undefined symbol:|error:" "$OUT/bmesh-alloc-link.log" | head -35 || true
+  fi
+  echo "::endgroup::"
+fi
