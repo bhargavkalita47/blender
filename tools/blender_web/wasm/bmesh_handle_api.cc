@@ -722,18 +722,18 @@ int web_mesh_bevel_edge(int handle, int edge_index, float offset, int segments)
     blender::BMO_slot_buffer_from_single(
         &op, blender::BMO_slot_get(op.slots_in, "geom"), &edge->head);
     blender::BMO_slot_float_set(op.slots_in, "offset", offset);
-    blender::BMO_slot_int_set(op.slots_in, "offset_type", BEVEL_AMT_OFFSET);
-    blender::BMO_slot_int_set(op.slots_in, "profile_type", BEVEL_PROFILE_SUPERELLIPSE);
+    blender::BMO_slot_int_set(op.slots_in, "offset_type", blender::BEVEL_AMT_OFFSET);
+    blender::BMO_slot_int_set(op.slots_in, "profile_type", blender::BEVEL_PROFILE_SUPERELLIPSE);
     blender::BMO_slot_int_set(op.slots_in, "segments", segments);
     blender::BMO_slot_float_set(op.slots_in, "profile", .5f);
-    blender::BMO_slot_int_set(op.slots_in, "affect", BEVEL_AFFECT_EDGES);
+    blender::BMO_slot_int_set(op.slots_in, "affect", blender::BEVEL_AFFECT_EDGES);
     blender::BMO_slot_bool_set(op.slots_in, "clamp_overlap", true);
     blender::BMO_slot_int_set(op.slots_in, "material", -1);
     blender::BMO_slot_bool_set(op.slots_in, "loop_slide", true);
-    blender::BMO_slot_int_set(op.slots_in, "face_strength_mode", BEVEL_FACE_STRENGTH_NONE);
-    blender::BMO_slot_int_set(op.slots_in, "miter_outer", BEVEL_MITER_SHARP);
-    blender::BMO_slot_int_set(op.slots_in, "miter_inner", BEVEL_MITER_SHARP);
-    blender::BMO_slot_int_set(op.slots_in, "vmesh_method", BEVEL_VMESH_ADJ);
+    blender::BMO_slot_int_set(op.slots_in, "face_strength_mode", blender::BEVEL_FACE_STRENGTH_NONE);
+    blender::BMO_slot_int_set(op.slots_in, "miter_outer", blender::BEVEL_MITER_SHARP);
+    blender::BMO_slot_int_set(op.slots_in, "miter_inner", blender::BEVEL_MITER_SHARP);
+    blender::BMO_slot_int_set(op.slots_in, "vmesh_method", blender::BEVEL_VMESH_ADJ);
     slot->top_face = nullptr; // Bevel invalidates prior convenience face ptr.
     blender::BMO_op_exec(bm, &op);
     blender::BMO_op_finish(bm, &op);
