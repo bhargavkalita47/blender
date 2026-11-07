@@ -898,17 +898,17 @@ int web_mesh_uv_layer_ensure(int handle)
   MeshSlot *slot = get_slot(handle);
   if (!slot) return -1;
   blender::BMesh *bm = slot->mesh;
-  if (blender::CustomData_get_offset(&bm->ldata, CD_PROP_FLOAT2) == -1) {
-    blender::BM_data_layer_add(bm, &bm->ldata, CD_PROP_FLOAT2);
+  if (blender::CustomData_get_offset(&bm->ldata, blender::CD_PROP_FLOAT2) == -1) {
+    blender::BM_data_layer_add(bm, &bm->ldata, blender::CD_PROP_FLOAT2);
   }
-  return blender::CustomData_get_offset(&bm->ldata, CD_PROP_FLOAT2) >= 0 ? 0 : -2;
+  return blender::CustomData_get_offset(&bm->ldata, blender::CD_PROP_FLOAT2) >= 0 ? 0 : -2;
 }
 
 int web_mesh_uv_float_count(int handle)
 {
   MeshSlot *slot = get_slot(handle);
   if (!slot) return -1;
-  if (blender::CustomData_get_offset(&slot->mesh->ldata, CD_PROP_FLOAT2) < 0) return -2;
+  if (blender::CustomData_get_offset(&slot->mesh->ldata, blender::CD_PROP_FLOAT2) < 0) return -2;
   if (slot->mesh->totloop > std::numeric_limits<int>::max() / 2) return -3;
   return slot->mesh->totloop * 2;
 }
@@ -920,7 +920,7 @@ int web_mesh_set_uv(int handle, int face_index, int corner_index, float u, float
   if (!std::isfinite(u) || !std::isfinite(v)) return -4;
   blender::BMesh *bm = slot->mesh;
   if (face_index < 0 || face_index >= bm->totface || corner_index < 0) return -2;
-  const int offset = blender::CustomData_get_offset(&bm->ldata, CD_PROP_FLOAT2);
+  const int offset = blender::CustomData_get_offset(&bm->ldata, blender::CD_PROP_FLOAT2);
   if (offset < 0) return -3;
   blender::BMIter iter;
   blender::BMFace *face = nullptr;
@@ -945,7 +945,7 @@ int web_mesh_copy_uvs(int handle, float *out, int float_capacity)
   if (count == 0) return 0;
   if (!out || float_capacity < count) return -3;
   MeshSlot *slot = get_slot(handle);
-  const int offset = blender::CustomData_get_offset(&slot->mesh->ldata, CD_PROP_FLOAT2);
+  const int offset = blender::CustomData_get_offset(&slot->mesh->ldata, blender::CD_PROP_FLOAT2);
   blender::BMIter iter;
   blender::BMFace *face = nullptr;
   int n = 0;
