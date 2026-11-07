@@ -51,5 +51,7 @@ jobs:
           path: |
             build/blender_web/bmesh_wasm/*.log
             build/blender_web/bmesh_wasm/status.json
+            build/blender_web/bmesh_wasm/bmesh_disk.mjs
+            build/blender_web/bmesh_wasm/bmesh_disk.wasm
           if-no-files-found: warn
           retention-days: 30
