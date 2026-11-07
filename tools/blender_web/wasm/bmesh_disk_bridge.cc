@@ -9,6 +9,12 @@
 #include "bmesh_class.hh"
 #include "intern/bmesh_structure.hh"
 
+// This original Blender function is intentionally private (defined in
+// bmesh_structure.cc). Declare it locally only for this source-level test.
+namespace blender {
+int bmesh_disk_count(const BMVert *v);
+}
+
 namespace {
 
 struct SquareWire {
