@@ -50,13 +50,13 @@ link_undefined = subprocess.run(
     ["nm", "-D", "--undefined-only", "-C", str(library)],
     capture_output=True, text=True, check=True).stdout
 prohibited_symbols = re.findall(
-    r"(?m)^.*(?:\\bGHOST_|\\bGPU_|\\bDRW_|\\bWM_|\\bRE_Render|\\bBLF_).*",
+    r"(?m)^.*(?:\bGHOST_|\bGPU_|\bDRW_|\bWM_|\bRE_Render|\bBLF_).*",
     link_undefined)
 assert not prohibited_symbols, f"Unexpected native UI/GPU unresolved symbols: {prohibited_symbols[:10]}"
 
 dyn = subprocess.run(["readelf", "-d", str(library)],
                      capture_output=True, text=True, check=True).stdout
-dependencies = sorted(set(re.findall(r"Shared library: \\[([^\\]]+)\\]", dyn)))
+dependencies = sorted(set(re.findall(r"Shared library: \[(.*?)\]", dyn)))
 for forbidden in ("libOpenColorIO", "libOpenImageIO", "libGL.so", "libEGL",
                   "libvulkan", "libX11", "libGHOST", "libblender_draw", "libCycles"):
     assert not any(forbidden in d for d in dependencies), (
@@ -67,7 +67,7 @@ defined = subprocess.run(["nm", "-D", "--defined-only", str(library)],
 for symbol in ("web_mesh_create_cube", "web_mesh_extrude_top",
                "web_mesh_destroy", "web_mesh_copy_positions",
                "web_mesh_copy_triangles", "web_mesh_validate_topology"):
-    assert re.search(rf"\\b{symbol}\\b", defined), f"Missing exported API {symbol}"
+    assert re.search(rf"\b{symbol}\b", defined), f"Missing exported API {symbol}"
 
 report = {
     "status": "pass",
