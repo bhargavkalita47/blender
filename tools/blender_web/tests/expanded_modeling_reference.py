@@ -62,6 +62,13 @@ def main():
         bmesh.ops.inset_individual(bm, faces=list(bm.faces), thickness=.25,
                                    depth=0.0, use_even_offset=True)
     results["inset_plane"] = capture("inset_plane", inset_plane)
+    def extrude_plane(bm):
+        bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1.0)
+        cap = bmesh.ops.extrude_discrete_faces(bm, faces=list(bm.faces))["faces"]
+        assert len(cap) == 1
+        for v in cap[0].verts:
+            v.co.z += 1.0
+    results["extruded_plane"] = capture("extruded_plane", extrude_plane)
     result = {"status":"pass","blender_build_hash":str(build_hash).lower(),
               "pinned_source_sha":PINNED,"shapes":results}
     print("BLENDER_WEB_EXPANDED_ORIGINAL=" + json.dumps(result,sort_keys=True))
