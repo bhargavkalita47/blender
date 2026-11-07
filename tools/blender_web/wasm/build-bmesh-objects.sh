@@ -128,7 +128,6 @@ SUPPORT=(
   source/blender/blenkernel/intern/customdata.cc
   source/blender/bmesh/intern/bmesh_iterators.cc
   source/blender/bmesh/intern/bmesh_operators.cc
-  source/blender/bmesh/intern/bmesh_marking.cc
 )
 SUPPORT_OBJECTS=()
 support_failed=0
@@ -146,6 +145,10 @@ for src in "${SUPPORT[@]}"; do
   fi
 done
 echo "::endgroup::"
+
+# BM_mesh_create/free does not itself need selection-marking translation units.
+# BMesh marking has a separate wasm32 enum-char narrowing problem to address
+# when selection/extended editing is part of the chosen runtime closure.
 
 if (( support_failed == 0 )); then
   echo "::group::Diagnostic: attempt genuine BM_mesh_create/free linkage with Blender support sources"
