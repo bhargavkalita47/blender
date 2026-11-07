@@ -32,6 +32,15 @@ jobs:
             .gitmodules
           sparse-checkout-cone-mode: false
 
+      - name: Avoid treating a Git LFS pointer as a native startup blend
+        shell: bash
+        run: |
+          file=release/datafiles/startup.blend
+          if [ -f "$file" ] && [ "$(stat -c%s "$file")" -lt 1024 ]; then
+            echo "The checkout lacks the startup.blend LFS object; moving the pointer aside inside CI only."
+            mv "$file" "${file}.lfs-pointer"
+          fi
+
       - name: Try a CPU-only native lite configuration
         shell: bash
         run: |
