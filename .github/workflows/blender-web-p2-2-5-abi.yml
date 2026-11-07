@@ -34,7 +34,7 @@ jobs:
       - name: Install original Blender source dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang ninja-build libfmt-dev binutils \
+          sudo apt-get install -y -qq clang ninja-build libfmt-dev libeigen3-dev binutils \
             libx11-6 libxi6 libxrender1 libxkbcommon0 libegl1 libopengl0 \
             libgl1 libglib2.0-0 libsm6 libxext6
       - name: Build extracted native core and standalone C client
