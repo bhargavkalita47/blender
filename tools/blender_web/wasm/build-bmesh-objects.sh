@@ -129,6 +129,12 @@ SUPPORT=(
   source/blender/blenkernel/intern/customdata.cc
   source/blender/bmesh/intern/bmesh_iterators.cc
   source/blender/bmesh/intern/bmesh_operators.cc
+  source/blender/blenlib/intern/math_vector.cc
+  source/blender/blenlib/intern/index_mask.cc
+  source/blender/blenlib/intern/listbase.cc
+  source/blender/blenkernel/intern/mesh_normals.cc
+  source/blender/blenkernel/intern/multires.cc
+  source/blender/blenkernel/intern/customdata_file.cc
 )
 SUPPORT_OBJECTS=()
 support_failed=0
