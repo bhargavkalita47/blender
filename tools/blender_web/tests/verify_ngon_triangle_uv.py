@@ -37,6 +37,10 @@ lib.web_mesh_set_uv_named.argtypes = [I, C.c_char_p, I, I, F, F]
 lib.web_mesh_copy_uvs_named.argtypes = [I, C.c_char_p, C.POINTER(F), I]
 lib.web_mesh_face_normal_float_count.argtypes = [I]
 lib.web_mesh_copy_face_normals.argtypes = [I, C.POINTER(F), I]
+lib.web_mesh_extrude_top.argtypes = [I, F]
+lib.web_mesh_extrude_face_z.argtypes = [I, I, F]
+lib.web_mesh_extrude_top.restype = I
+lib.web_mesh_extrude_face_z.restype = I
 lib.web_mesh_live_count.restype = I
 lib.web_mesh_memory_bytes.restype = I
 
@@ -136,6 +140,11 @@ def main():
     # Both faces sharing a cube vertex retain independent UV corners.
     h = lib.web_mesh_create_cube()
     assert h > 0
+    # Invalid extrusions must be rejected before original Blender BMO runs.
+    assert lib.web_mesh_extrude_top(h, F(math.nan)) == -2
+    assert lib.web_mesh_extrude_top(h, F(math.inf)) == -2
+    assert lib.web_mesh_extrude_top(h, F(3.4028235e38)) == -2
+    assert lib.web_mesh_triangle_index_count(h) == 36
     assert lib.web_mesh_uv_layer_ensure(h) == 0
     for face in range(6):
         for corner in range(4):
@@ -231,6 +240,7 @@ def main():
         "bounded_named_uv_layers": True,
         "independent_uv_domains": True,
         "source_backed_face_normals": True,
+        "extrusion_overflow_rejected_before_mutation": True,
         "invalid_geometry_rejected": True,
         "native_capacity_checked": 16,
         "lifecycle_cycles": 200,
