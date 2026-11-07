@@ -5,10 +5,12 @@
 import json
 import math
 import sys
+import pathlib
 
 import bmesh
 import bpy
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from native_reference import PINNED, xyz
 
 
