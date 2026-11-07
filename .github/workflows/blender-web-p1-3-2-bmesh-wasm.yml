@@ -53,6 +53,10 @@ jobs:
             build/blender_web/bmesh_wasm/status.json
             build/blender_web/bmesh_wasm/lifecycle-probe-status.json
             build/blender_web/bmesh_wasm/lifecycle-expanded-status.json
+            build/blender_web/bmesh_wasm/allocation-probe-status.json
+            build/blender_web/bmesh_wasm/bmesh-alloc-run.log
+            build/blender_web/bmesh_wasm/bmesh_alloc.wasm
+            build/blender_web/bmesh_wasm/bmesh_alloc.mjs
             build/blender_web/bmesh_wasm/bmesh_disk.mjs
             build/blender_web/bmesh_wasm/bmesh_disk.wasm
           if-no-files-found: warn
