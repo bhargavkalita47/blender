@@ -25,6 +25,8 @@ core.web_mesh_delete_face.argtypes = [ctypes.c_int, ctypes.c_int]
 core.web_mesh_delete_face.restype = ctypes.c_int
 core.web_mesh_poke_face.argtypes = [ctypes.c_int, ctypes.c_int]
 core.web_mesh_poke_face.restype = ctypes.c_int
+core.web_mesh_inset_face.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float]
+core.web_mesh_inset_face.restype = ctypes.c_int
 
 FIXTURES = [
     ("grid_3x2", lambda: core.web_mesh_create_grid(3, 2), (12, 17, 6, 24, 12)),
@@ -110,6 +112,17 @@ def main():
     assert core.web_mesh_destroy(plane)==0
     assert core.web_mesh_poke_face(plane, 0)==-1
 
+    inset = core.web_mesh_create_plane()
+    assert inset > 0
+    assert core.web_mesh_inset_face(inset, -1, .25) == -2
+    assert core.web_mesh_inset_face(inset, 0, math.nan) == -2
+    assert core.web_mesh_inset_face(inset, 0, .25) == 0
+    inset_snapshot = snapshot(inset)
+    assert (inset_snapshot["verts"],inset_snapshot["edges"],
+            inset_snapshot["faces"],inset_snapshot["loops"],
+            inset_snapshot["triangles"]) == (8,12,5,20,10), inset_snapshot
+    assert core.web_mesh_destroy(inset)==0
+
     plane = core.web_mesh_create_plane()
     assert plane > 0
     assert core.web_mesh_delete_face(plane, 0) == 0
@@ -139,7 +152,8 @@ def main():
         "reference_cases":reference_cases,
         "new_primitive_lifecycle_cycles":600, "vertex_selection_transforms":True,
         "face_deletion":True, "original_blender_bmo_poke":True,
-        "poked_plane":poked,
+        "poked_plane":poked, "inset_plane":inset_snapshot,
+        "original_blender_bmo_inset":True,
         "multi_mesh_independence":True,
         "invalid_parameters_rejected":True, "tracked_allocations_before":baseline,
         "tracked_allocations_after":core.web_mesh_memory_bytes()
