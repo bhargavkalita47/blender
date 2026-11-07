@@ -3087,7 +3087,17 @@ static BMOpDefine bmo_symmetrize_def = {
  * unchanged in all normal builds. This does not replace the BMesh algorithms.
  */
 #if defined(BLENDER_WEB_MINIMAL_BMO)
-const BMOpDefine *bmo_opdefines[] = {&bmo_delete_def, &bmo_extrude_discrete_faces_def};
+const BMOpDefine *bmo_opdefines[] = {&bmo_delete_def, &bmo_extrude_discrete_faces_def,
+#if defined(BLENDER_WEB_NATIVE_POKE)
+    &bmo_poke_def,
+#endif
+#if defined(BLENDER_WEB_NATIVE_INSET)
+    &bmo_inset_individual_def,
+#endif
+#if defined(BLENDER_WEB_NATIVE_SUBDIVIDE)
+    &bmo_subdivide_edges_def,
+#endif
+};
 #else
 const BMOpDefine *bmo_opdefines[] = {
     &bmo_average_vert_facedata_def,

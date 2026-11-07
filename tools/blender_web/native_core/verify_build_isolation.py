@@ -24,6 +24,11 @@ for path in sources:
         raise AssertionError(f"Unrecognized source path outside repo: {path}")
 must_include = [
     "source/blender/bmesh/intern/bmesh_mesh.cc",
+    "source/blender/bmesh/operators/bmo_poke.cc",
+    "source/blender/bmesh/intern/bmesh_interp.cc",
+    "source/blender/bmesh/operators/bmo_inset.cc",
+    "source/blender/bmesh/intern/bmesh_mods.cc",
+    "source/blender/bmesh/operators/bmo_subdivide.cc",
     "source/blender/bmesh/intern/bmesh_structure.cc",
     "source/blender/blenkernel/intern/customdata.cc",
     "intern/guardedalloc/intern/mallocn.cc",
@@ -32,7 +37,9 @@ must_include = [
 ]
 missing = sorted(set(must_include) - set(source_relative))
 assert not missing, f"Missing original Blender translation units: {missing}"
-assert len(sources) == 43, f"Expected 42 original+adapter source files and one smoke: {len(sources)}"
+# 53 original source files + 1 ABI bridge + 1 smoke executable, after
+# adding the original BLI/translation implementations required by BMO edits.
+assert len(sources) == 55, f"Expected 53 original Blender sources + bridge + smoke, got {len(sources)}"
 forbidden_prefixes = (
     "source/blender/draw/",
     "source/blender/gpu/",

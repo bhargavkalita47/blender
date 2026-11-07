@@ -50,6 +50,11 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/intern/bmesh_opdefines.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_dupe.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_extrude.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_poke.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/intern/bmesh_interp.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_inset.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/intern/bmesh_mods.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_subdivide.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_assert.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_ghash.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string.cc
@@ -61,6 +66,16 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/task_scheduler.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/math_geom.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/threads.cc
+  # Original Blender providers required by expanded BMO inset/subdivide:
+  # UTF-8 names, Blender translation (internationalization disabled in
+  # this isolated target), BLI RNG/stack, and legacy procedural noise.
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string_ref.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string_utf8.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string_utils.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/rand.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/stack.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/noise_c.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blentranslation/intern/blt_translation.cc
   ${BLENDER_WEB_SOURCE_ROOT}/tools/blender_web/wasm/bmesh_handle_api.cc
 )
 set(BLENDER_WEB_NATIVE_INCLUDES
@@ -92,6 +107,7 @@ set(BLENDER_WEB_NATIVE_INCLUDES
   ${BLENDER_WEB_SOURCE_ROOT}/intern/guardedalloc/intern
   ${BLENDER_WEB_SOURCE_ROOT}/intern/eigen
   ${BLENDER_WEB_SOURCE_ROOT}/extern/rangetree
+  ${BLENDER_WEB_SOURCE_ROOT}/extern/wcwidth
 )
 
 # FMT_HEADER_ONLY allows the original BLI dependency to use native fmt headers
@@ -111,7 +127,7 @@ set_source_files_properties(
 target_include_directories(blender_web_native_core PRIVATE
   ${BLENDER_WEB_NATIVE_INCLUDES} ${FMT_INCLUDE_DIR})
 target_compile_definitions(blender_web_native_core PRIVATE
-  NDEBUG FMT_HEADER_ONLY BLENDER_WEB_MINIMAL_BMO)
+  NDEBUG FMT_HEADER_ONLY BLENDER_WEB_MINIMAL_BMO BLENDER_WEB_NATIVE_POKE BLENDER_WEB_NATIVE_INSET BLENDER_WEB_NATIVE_SUBDIVIDE)
 # Required by existing Blender bit-7 flag enums in the current source build.
 # DNA serialization semantics must be validated before general native parity.
 target_compile_options(blender_web_native_core PRIVATE
@@ -130,6 +146,6 @@ enable_testing()
 add_test(NAME blender_web_native_bmesh COMMAND blender_web_native_smoke)
 set_tests_properties(blender_web_native_bmesh PROPERTIES TIMEOUT 45)
 
-message(STATUS "Blender Web native-core experimental source count: 42")
+message(STATUS "Blender Web native-core experimental source count: 54")
 message(STATUS "Original Blender source root: ${BLENDER_WEB_SOURCE_ROOT}")
 message(STATUS "This standalone CMake project does NOT run the upstream Blender CMake configuration")
