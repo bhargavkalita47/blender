@@ -211,6 +211,15 @@ int create_extended_primitive(int kind, int segments, int rings)
 
 extern "C" {
 
+/* Experimental API introspection. Version 0 means this ABI is not frozen.
+ * Clients must feature-detect rather than assume production compatibility. */
+int web_mesh_api_version_major() { return 0; }
+int web_mesh_api_version_minor() { return 1; }
+int web_mesh_max_live_meshes() { return int(kCapacity); }
+
+/* Shared preflight for any Z-only extrusion. Validate before BMO mutates
+ * topology: NaN/Inf or coordinate overflow must not poison the mesh. */
+
 int web_mesh_create_cube()
 {
   unsigned index = kCapacity;
@@ -665,6 +674,15 @@ int web_mesh_extrude_top(int handle, float delta_z)
   if (!slot || !slot->top_face) {
     return -1;
   }
+  if (!std::isfinite(delta_z)) return -2;
+  blender::BMLoop *preflight = BM_FACE_FIRST_LOOP(slot->top_face);
+  blender::BMLoop *cursor = preflight;
+  do {
+    const double next = double(cursor->v->co[2]) + double(delta_z);
+    if (!std::isfinite(next) ||
+        std::abs(next) > double(std::numeric_limits<float>::max())) return -2;
+    cursor = cursor->next;
+  } while (cursor != preflight);
   blender::BMOperator op;
   blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "extrude_discrete_faces");
   blender::BMO_slot_buffer_from_single(
@@ -707,6 +725,14 @@ int web_mesh_extrude_face_z(int handle, int face_index, float distance)
   int i = 0;
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
     if (i++ != face_index) continue;
+    blender::BMLoop *preflight = BM_FACE_FIRST_LOOP(face);
+    blender::BMLoop *cursor = preflight;
+    do {
+      const double next = double(cursor->v->co[2]) + double(distance);
+      if (!std::isfinite(next) ||
+          std::abs(next) > double(std::numeric_limits<float>::max())) return -2;
+      cursor = cursor->next;
+    } while (cursor != preflight);
     blender::BMOperator op;
     blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "extrude_discrete_faces");
     blender::BMO_slot_buffer_from_single(
