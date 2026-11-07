@@ -40,7 +40,11 @@ INC=(
   intern/eigen
   extern/rangetree
 )
-FLAGS=(-std=c++20 -O0 -g0 -DNDEBUG)
+# Blender 5.4 Alpha has two one-byte DNA flag enums using bit 7; for the
+# wasm32 experiment, plain char must be unsigned to represent 128. This is
+# a build-mode compatibility setting, not a source-model rewrite. Revalidate
+# serialized DNA semantics before any production release.
+FLAGS=(-std=c++20 -O0 -g0 -DNDEBUG -funsigned-char -DFMT_HEADER_ONLY)
 for dir in "${INC[@]}"; do
   if [[ -d "$ROOT/$dir" ]]; then
     FLAGS+=("-I$ROOT/$dir")
