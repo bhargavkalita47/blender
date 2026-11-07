@@ -1,0 +1,104 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 2.2.3 native modeling operations
+
+on:
+  push:
+    branches:
+      - dev/p2-modeling-ops
+  pull_request:
+    branches:
+      - dev/p2-core-extraction
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  modeling-operation-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out pinned original Blender BMesh sources and new modeling API
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            source/blender
+            intern
+            extern
+            tools/blender_web
+          sparse-checkout-cone-mode: false
+
+      - name: Install native C++ build tools and pinned Blender runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang ninja-build libfmt-dev binutils \
+            libx11-6 libxi6 libxrender1 libxkbcommon0 libegl1 libopengl0 \
+            libgl1 libglib2.0-0 libsm6 libxext6
+
+      - name: Static Python correctness gate
+        run: |
+          python3 -m py_compile \
+            tools/blender_web/tests/native_reference.py \
+            tools/blender_web/tests/download_pinned_reference.py \
+            tools/blender_web/tests/export_extracted_parity.py \
+            tools/blender_web/tests/compare_reference_parity.py \
+            tools/blender_web/tests/verify_modeling_ops.py \
+            tools/blender_web/tests/modeling_ops_reference.py \
+            tools/blender_web/tests/compare_modeling_ops.py
+
+      - name: Compile and link independent native Blender modeling core
+        run: |
+          cmake -S tools/blender_web/native_core \
+            -B build/blender_web/native_core -G Ninja \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/blender_web/native_core --parallel 4
+          ctest --test-dir build/blender_web/native_core --output-on-failure
+          python3 tools/blender_web/native_core/verify_build_isolation.py \
+            build/blender_web/native_core
+
+      - name: Run original BMesh plane translation topology and 1000-cycle regressions
+        run: |
+          set -o pipefail
+          mkdir -p build/blender_web
+          python3 tools/blender_web/tests/verify_modeling_ops.py \
+            build/blender_web/native_core/libblender_web_native_core.so \
+            | tee build/blender_web/modeling-ops-extracted.log
+
+      - name: Download official Blender 5.4 Alpha executable built from exact source commit
+        run: |
+          python3 tools/blender_web/tests/download_pinned_reference.py \
+            build/blender_web/pinned_reference
+
+      - name: Run official original Blender grid and translation reference
+        run: |
+          set -o pipefail
+          BLENDER_BIN="$(cat build/blender_web/pinned_reference/blender_path.txt)"
+          "$BLENDER_BIN" --background --factory-startup --disable-autoexec \
+            --python-exit-code 1 \
+            --python tools/blender_web/tests/modeling_ops_reference.py \
+            2>&1 | tee build/blender_web/modeling-ops-original.log
+
+      - name: Enforce exact-source geometry parity and negative inputs
+        run: |
+          python3 tools/blender_web/tests/compare_modeling_ops.py \
+            build/blender_web/modeling-ops-original.log \
+            build/blender_web/modeling-ops-extracted.log \
+            build/blender_web/modeling-ops-parity.json
+
+      - name: Upload modeled geometry reference and linker isolation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-phase-2-2-3-initial-modeling
+          path: |
+            build/blender_web/native_core/compile_commands.json
+            build/blender_web/native_core/isolation-report.json
+            build/blender_web/pinned_reference/reference_provenance.json
+            build/blender_web/modeling-ops-original.log
+            build/blender_web/modeling-ops-extracted.log
+            build/blender_web/modeling-ops-parity.json
+            build/blender_web/native_core/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 30
