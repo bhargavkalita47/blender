@@ -21,6 +21,7 @@ INC=(
   source/blender/functions
   source/blender/blentranslation
   source/blender/blenloader
+  source/blender/blenloader_core
   source/blender/imbuf
   source/blender/animrig
   source/blender/asset_system
