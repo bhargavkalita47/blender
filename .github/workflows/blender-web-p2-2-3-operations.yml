@@ -6,6 +6,8 @@ on:
   push:
     branches:
       - dev/p2-modeling-ops
+      - dev/p2-attributes-uv
+      - dev/p2-core-consolidation
   pull_request:
     branches:
       - dev/p2-core-extraction
@@ -48,7 +50,8 @@ jobs:
             tools/blender_web/tests/compare_modeling_ops.py \
             tools/blender_web/tests/verify_expanded_modeling.py \
             tools/blender_web/tests/expanded_modeling_reference.py \
-            tools/blender_web/tests/compare_expanded_primitives.py
+            tools/blender_web/tests/compare_expanded_primitives.py \
+            tools/blender_web/tests/verify_extrusion_guards.py
 
       - name: Compile and link independent native Blender modeling core
         run: |
@@ -75,6 +78,13 @@ jobs:
           python3 tools/blender_web/tests/verify_expanded_modeling.py \
             build/blender_web/native_core/libblender_web_native_core.so \
             | tee build/blender_web/expanded-native.log
+
+      - name: Reject nonfinite extrusion before BMesh topology mutation
+        run: |
+          set -o pipefail
+          python3 tools/blender_web/tests/verify_extrusion_guards.py \\
+            build/blender_web/native_core/libblender_web_native_core.so \\
+            | tee build/blender_web/extrusion-guards.log
 
       - name: Download official Blender 5.4 Alpha executable built from exact source commit
         run: |
@@ -125,6 +135,7 @@ jobs:
             build/blender_web/modeling-ops-original.log
             build/blender_web/modeling-ops-extracted.log
             build/blender_web/expanded-native.log
+            build/blender_web/extrusion-guards.log
             build/blender_web/expanded-original.log
             build/blender_web/expanded-parity.json
             build/blender_web/modeling-ops-parity.json
