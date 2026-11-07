@@ -53,6 +53,7 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_poke.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/intern/bmesh_interp.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_inset.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/intern/bmesh_mods.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_assert.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_ghash.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string.cc
@@ -133,6 +134,6 @@ enable_testing()
 add_test(NAME blender_web_native_bmesh COMMAND blender_web_native_smoke)
 set_tests_properties(blender_web_native_bmesh PROPERTIES TIMEOUT 45)
 
-message(STATUS "Blender Web native-core experimental source count: 45")
+message(STATUS "Blender Web native-core experimental source count: 46")
 message(STATUS "Original Blender source root: ${BLENDER_WEB_SOURCE_ROOT}")
 message(STATUS "This standalone CMake project does NOT run the upstream Blender CMake configuration")
