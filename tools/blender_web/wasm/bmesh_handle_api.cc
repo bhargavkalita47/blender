@@ -530,6 +530,9 @@ int web_mesh_inset_face(int handle, int index, float thickness)
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
     if (i++ != index) continue;
     if (face->len != 4) return -4;
+    // The isolated BMesh primitive constructor does not populate cached face
+    // normals; inset uses those normals for edge tangent offsets.
+    blender::BM_face_normal_update(face);
     const int old_faces = slot->mesh->totface;
     const int old_verts = slot->mesh->totvert;
     blender::BMOperator op;
