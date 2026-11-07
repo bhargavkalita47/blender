@@ -70,6 +70,7 @@ SOURCES=(
   source/blender/bmesh/intern/bmesh_structure.cc
   source/blender/bmesh/intern/bmesh_core.cc
   source/blender/bmesh/intern/bmesh_construct.cc
+  source/blender/bmesh/intern/bmesh_query.cc
   source/blender/bmesh/intern/bmesh_mesh.cc
 )
 printf 'Emscripten compiler: '; em++ --version | head -1
@@ -248,7 +249,7 @@ echo "::group::Diagnostic: construct real Blender BMesh cube topology"
 if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
     "$OUT/bmesh_mesh_lifecycle.o" \
     "$OUT/bmesh_structure.cc.o" "$OUT/bmesh_core.cc.o" \
-    "$OUT/bmesh_construct.cc.o" "${SUPPORT_OBJECTS[@]}" \
+    "$OUT/bmesh_construct.cc.o" "$OUT/bmesh_query.cc.o" "${SUPPORT_OBJECTS[@]}" \
     "$ROOT/tools/blender_web/wasm/bmesh_cube_probe.cc" \
     -Wl,--gc-sections -Wl,--error-limit=0 \
     -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
