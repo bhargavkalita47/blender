@@ -241,6 +241,95 @@ int web_mesh_validate_topology(int handle)
   return counted_faces == slot->mesh->totface && counted_loops == slot->mesh->totloop ? 0 : -7;
 }
 
+/* Phase 1.3.3: COPY current Blender mesh coordinates and triangulated face
+ * indices into caller-owned linear memory. Never expose BMVert/BMFace pointers.
+ * Current scope is the closed, quad-only primitive/extrude fixture; future
+ * general polygon triangulation belongs to the actual Blender mesh pipeline.
+ * Return values: >=0 number of values written; -1 invalid handle;
+ * -2 null/insufficient output buffer; -3 non-quad face or integer overflow.
+ */
+int web_mesh_position_float_count(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) {
+    return -1;
+  }
+  if (slot->mesh->totvert > 715827882) {
+    return -3;
+  }
+  return slot->mesh->totvert * 3;
+}
+
+int web_mesh_triangle_index_count(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) {
+    return -1;
+  }
+  if (slot->mesh->totface > 357913941) {
+    return -3;
+  }
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    if (face->len != 4) {
+      return -3;
+    }
+  }
+  return slot->mesh->totface * 6;
+}
+
+int web_mesh_copy_positions(int handle, float *out, int float_capacity)
+{
+  const int n = web_mesh_position_float_count(handle);
+  if (n < 0) {
+    return n;
+  }
+  if (out == nullptr || float_capacity < n) {
+    return -2;
+  }
+  MeshSlot *slot = get_slot(handle);
+  blender::BMIter iter;
+  blender::BMVert *vertex = nullptr;
+  int i = 0;
+  BM_ITER_MESH (vertex, &iter, slot->mesh, blender::BM_VERTS_OF_MESH) {
+    out[i++] = vertex->co[0];
+    out[i++] = vertex->co[1];
+    out[i++] = vertex->co[2];
+  }
+  return i == n ? i : -3;
+}
+
+int web_mesh_copy_triangles(int handle, std::uint32_t *out, int index_capacity)
+{
+  const int n = web_mesh_triangle_index_count(handle);
+  if (n < 0) {
+    return n;
+  }
+  if (out == nullptr || index_capacity < n) {
+    return -2;
+  }
+  MeshSlot *slot = get_slot(handle);
+  blender::BM_mesh_elem_index_ensure(slot->mesh, blender::BM_VERT);
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+    const std::uint32_t a = std::uint32_t(blender::BM_elem_index_get(loop->v));
+    const std::uint32_t b = std::uint32_t(blender::BM_elem_index_get(loop->next->v));
+    const std::uint32_t c = std::uint32_t(blender::BM_elem_index_get(loop->next->next->v));
+    const std::uint32_t d = std::uint32_t(blender::BM_elem_index_get(loop->prev->v));
+    out[i++] = a;
+    out[i++] = b;
+    out[i++] = c;
+    out[i++] = a;
+    out[i++] = c;
+    out[i++] = d;
+  }
+  return i == n ? i : -3;
+}
+
 int web_mesh_live_count()
 {
   int count = 0;
