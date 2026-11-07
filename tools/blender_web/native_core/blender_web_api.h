@@ -23,7 +23,8 @@ enum {
   BLENDER_WEB_CAP_PLANAR_NGON = 1u << 6,
   BLENDER_WEB_CAP_NAMED_UV = 1u << 7,
   BLENDER_WEB_CAP_FACE_NORMALS = 1u << 8,
-  BLENDER_WEB_CAP_BOUNDARY_COLLAPSE = 1u << 9
+  BLENDER_WEB_CAP_BOUNDARY_COLLAPSE = 1u << 9,
+  BLENDER_WEB_CAP_NAMED_FLOAT_ATTRIBUTES = 1u << 10
 };
 
 /* ABI discovery (experimental). A caller MUST test capability bits before
@@ -108,6 +109,20 @@ int web_mesh_set_uv_named(int handle, const char *name, int face_index,
                           int corner_index, float u, float v);
 int web_mesh_copy_uvs_named(int handle, const char *name, float *out,
                             int float_capacity);
+/* Optional: BLENDER_WEB_CAP_NAMED_FLOAT_ATTRIBUTES.
+ * Genuine BMesh CustomData CD_PROP_FLOAT, domain:
+ * 1 vertex, 2 edge, 3 face, 4 per-face-corner (BMLoop).
+ * Up to eight layers per domain. Same restricted ASCII names as UV layer API.
+ * Names identify a layer within a domain; values are enumerated in the
+ * domain's current BMesh iteration order. Topology edits invalidate indices.
+ * The original Blender editing operators determine attribute propagation.
+ */
+int web_mesh_attr_float_count(int handle, int domain);
+int web_mesh_attr_float_layer_ensure(int handle, int domain, const char *name);
+int web_mesh_attr_float_set(int handle, int domain, const char *name,
+                            int element_index, float value);
+int web_mesh_attr_float_copy(int handle, int domain, const char *name,
+                             float *out, int float_capacity);
 
 #ifdef __cplusplus
 }
