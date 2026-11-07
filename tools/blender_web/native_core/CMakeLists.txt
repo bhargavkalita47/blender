@@ -65,6 +65,8 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/task_pool.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/task_scheduler.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/math_geom.cc
+  # Original Blender BLI concave polygon triangulation used by BM_face_calc_tessellation.
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/polyfill_2d.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/threads.cc
   # Original Blender providers required by expanded BMO inset/subdivide:
   # UTF-8 names, Blender translation (internationalization disabled in
@@ -141,6 +143,8 @@ endif()
 add_executable(blender_web_native_smoke
   "${CMAKE_CURRENT_LIST_DIR}/native_core_smoke.cc")
 target_link_libraries(blender_web_native_smoke PRIVATE blender_web_native_core)
+# Release builds otherwise define NDEBUG and silently remove all smoke asserts.
+target_compile_options(blender_web_native_smoke PRIVATE -UNDEBUG)
 
 enable_testing()
 add_test(NAME blender_web_native_bmesh COMMAND blender_web_native_smoke)
@@ -151,11 +155,12 @@ add_executable(blender_web_native_contract
 target_include_directories(blender_web_native_contract PRIVATE
   "${CMAKE_CURRENT_LIST_DIR}")
 target_link_libraries(blender_web_native_contract PRIVATE blender_web_native_core)
+target_compile_options(blender_web_native_contract PRIVATE -UNDEBUG)
 add_test(NAME blender_web_native_contract COMMAND blender_web_native_contract)
 set_tests_properties(blender_web_native_contract PROPERTIES TIMEOUT 45)
 
 set_tests_properties(blender_web_native_bmesh PROPERTIES TIMEOUT 45)
 
-message(STATUS "Blender Web native-core experimental source count: 54")
+message(STATUS "Blender Web native-core experimental source count: 55")
 message(STATUS "Original Blender source root: ${BLENDER_WEB_SOURCE_ROOT}")
 message(STATUS "This standalone CMake project does NOT run the upstream Blender CMake configuration")
