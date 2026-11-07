@@ -197,6 +197,50 @@ int web_mesh_extrude_top(int handle, float delta_z)
   return 0;
 }
 
+/* Check linked BMesh face loops, edge endpoints and radial adjacency.
+ * This validates actual Blender topology after each modeling operation. */
+int web_mesh_validate_topology(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) {
+    return -1;
+  }
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int counted_faces = 0;
+  int counted_loops = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    ++counted_faces;
+    if (!face->l_first || face->len != 4) {
+      return -2;
+    }
+    blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+    for (int n = 0; n < face->len; ++n) {
+      if (!loop || !loop->next || !loop->prev || !loop->v || !loop->e ||
+          loop->f != face || loop->next->prev != loop || loop->prev->next != loop) {
+        return -3;
+      }
+      const blender::BMVert *v1 = loop->v;
+      const blender::BMVert *v2 = loop->next->v;
+      if (!((loop->e->v1 == v1 && loop->e->v2 == v2) ||
+            (loop->e->v1 == v2 && loop->e->v2 == v1))) {
+        return -4;
+      }
+      if (!loop->radial_next || !loop->radial_prev ||
+          loop->radial_next == loop || loop->radial_next->radial_next != loop ||
+          loop->radial_prev != loop->radial_next) {
+        return -5;  // Closed manifold cube: every edge has exactly two incident faces.
+      }
+      ++counted_loops;
+      loop = loop->next;
+    }
+    if (loop != BM_FACE_FIRST_LOOP(face)) {
+      return -6;
+    }
+  }
+  return counted_faces == slot->mesh->totface && counted_loops == slot->mesh->totloop ? 0 : -7;
+}
+
 int web_mesh_live_count()
 {
   int count = 0;
