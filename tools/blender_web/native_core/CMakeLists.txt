@@ -100,6 +100,14 @@ find_path(FMT_INCLUDE_DIR fmt/format.h REQUIRED)
 find_package(Threads REQUIRED)
 
 add_library(blender_web_native_core SHARED ${BLENDER_WEB_NATIVE_SOURCES})
+# Do not export the full native BKE/BLI surface. Restrict the dynamic symbol
+# roots to our bounded C ABI bridge so --gc-sections can discard unrelated
+# desktop-side functions and their dependencies.
+set_target_properties(blender_web_native_core PROPERTIES
+  CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN YES)
+set_source_files_properties(
+  "${BLENDER_WEB_SOURCE_ROOT}/tools/blender_web/wasm/bmesh_handle_api.cc"
+  PROPERTIES COMPILE_OPTIONS "-fvisibility=default")
 target_include_directories(blender_web_native_core PRIVATE
   ${BLENDER_WEB_NATIVE_INCLUDES} ${FMT_INCLUDE_DIR})
 target_compile_definitions(blender_web_native_core PRIVATE
