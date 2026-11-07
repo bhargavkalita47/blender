@@ -20,7 +20,9 @@ enum {
   BLENDER_WEB_CAP_SUBDIVIDE = 1u << 3,
   BLENDER_WEB_CAP_LOOP_UV = 1u << 4,
   BLENDER_WEB_CAP_TRIANGLE_CORNERS = 1u << 5,
-  BLENDER_WEB_CAP_PLANAR_NGON = 1u << 6
+  BLENDER_WEB_CAP_PLANAR_NGON = 1u << 6,
+  BLENDER_WEB_CAP_NAMED_UV = 1u << 7,
+  BLENDER_WEB_CAP_FACE_NORMALS = 1u << 8
 };
 
 /* ABI discovery (experimental). A caller MUST test capability bits before
@@ -67,6 +69,12 @@ int web_mesh_copy_triangles(int handle, uint32_t *out, int index_capacity);
  * invalidate prior snapshots and capacities.
  */
 int web_mesh_copy_triangle_corners(int handle, uint32_t *out, int index_capacity);
+/* Optional: BLENDER_WEB_CAP_FACE_NORMALS. Returns xyz per BMesh face in
+ * face enumeration order (one normal per face; NOT smooth loop normals).
+ * Normals are recomputed from original Blender BMesh geometry on export.
+ */
+int web_mesh_face_normal_float_count(int handle);
+int web_mesh_copy_face_normals(int handle, float *out, int float_capacity);
 int web_mesh_validate_topology(int handle);
 int web_mesh_translate(int handle, float dx, float dy, float dz);
 
@@ -79,6 +87,18 @@ int web_mesh_uv_layer_ensure(int handle);
 int web_mesh_uv_float_count(int handle);
 int web_mesh_set_uv(int handle, int face_index, int corner_index, float u, float v);
 int web_mesh_copy_uvs(int handle, float *out, int float_capacity);
+/* Optional: BLENDER_WEB_CAP_NAMED_UV. Up to 8 independent UV layers.
+ * Names must be ASCII alphanumeric, underscore or hyphen, length 1..63;
+ * no pointers or storage references are retained by the engine.
+ * Return values are function-specific; invalid name: -4; no named layer
+ * when writing/copying: -3; exhausted layer quota: -5.
+ */
+int web_mesh_named_uv_layer_count(int handle);
+int web_mesh_uv_layer_ensure_named(int handle, const char *name);
+int web_mesh_set_uv_named(int handle, const char *name, int face_index,
+                          int corner_index, float u, float v);
+int web_mesh_copy_uvs_named(int handle, const char *name, float *out,
+                            int float_capacity);
 
 #ifdef __cplusplus
 }
