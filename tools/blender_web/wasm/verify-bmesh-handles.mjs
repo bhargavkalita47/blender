@@ -22,22 +22,26 @@ assert.equal(wasm._web_mesh_edges(h),12);
 assert.equal(wasm._web_mesh_faces(h),6);
 assert.equal(wasm._web_mesh_loops(h),24);
 assert.equal(wasm._web_mesh_top_z(h),1);
+assert.equal(wasm._web_mesh_validate_topology(h),0,"Initial cube must be a closed manifold");
 assert.equal(wasm._web_mesh_extrude_top(h,1),0);
 assert.equal(wasm._web_mesh_verts(h),12);
 assert.equal(wasm._web_mesh_edges(h),20);
 assert.equal(wasm._web_mesh_faces(h),10);
 assert.equal(wasm._web_mesh_loops(h),40);
 assert.equal(wasm._web_mesh_top_z(h),2);
+assert.equal(wasm._web_mesh_validate_topology(h),0,"Extruded cube must have correct loops and radial links");
 assert.equal(wasm._web_mesh_extrude_top(h,0.5),0);
 assert.equal(wasm._web_mesh_verts(h),16);
 assert.equal(wasm._web_mesh_edges(h),28);
 assert.equal(wasm._web_mesh_faces(h),14);
 assert.equal(wasm._web_mesh_loops(h),56);
 assert.equal(wasm._web_mesh_top_z(h),2.5);
+assert.equal(wasm._web_mesh_validate_topology(h),0,"Second extrusion must preserve manifold topology");
 assert.equal(wasm._web_mesh_destroy(h),0);
 assert.equal(wasm._web_mesh_destroy(h),-1,"Stale handle must not free twice");
 assert.equal(wasm._web_mesh_faces(h),-1,"Stale handle must be invalid");
 assert.equal(wasm._web_mesh_extrude_top(h,1),-1);
+assert.equal(wasm._web_mesh_validate_topology(h),-1);
 assert.equal(wasm._web_mesh_live_count(),0);
 
 // Handle generations: reuse a slot must not validate old handles.
@@ -65,6 +69,7 @@ for(let i=0;i<1000;i++){
   assert.ok(id>0);
   assert.equal(wasm._web_mesh_extrude_top(id,1),0);
   assert.equal(wasm._web_mesh_extrude_top(id,0.5),0);
+  assert.equal(wasm._web_mesh_validate_topology(id),0,"Stress iteration topology must be valid");
   assert.equal(wasm._web_mesh_destroy(id),0);
 }
 assert.equal(wasm._web_mesh_live_count(),0);
