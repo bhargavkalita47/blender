@@ -3094,6 +3094,9 @@ const BMOpDefine *bmo_opdefines[] = {&bmo_delete_def, &bmo_extrude_discrete_face
 #if defined(BLENDER_WEB_NATIVE_INSET)
     &bmo_inset_individual_def,
 #endif
+#if defined(BLENDER_WEB_NATIVE_SUBDIVIDE)
+    &bmo_subdivide_edges_def,
+#endif
 };
 #else
 const BMOpDefine *bmo_opdefines[] = {
