@@ -51,12 +51,12 @@ jobs:
         run: |
           node tools/blender_web/wasm/verify-bmesh-mesh-buffers.mjs build/blender_web/bmesh_wasm
 
-      - name: Install pinned Chromium and Firefox browser test runner
+      - name: Install pinned Chromium Firefox and WebKit browser test runner
         run: |
           npm install --no-save --no-package-lock playwright@1.55.0
-          npx --no-install playwright install --with-deps chromium firefox
+          npx --no-install playwright install --with-deps chromium firefox webkit
 
-      - name: Run original Blender BMesh WASM in two real browser engines
+      - name: Run original Blender BMesh WASM in three real browser engines
         run: |
           node tools/blender_web/wasm/verify-bmesh-browser.mjs build/blender_web/bmesh_wasm
 
