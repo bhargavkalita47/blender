@@ -1,6 +1,6 @@
 # Blender for Web — Project Engineering Index
 
-> Status: Phase 1.1 complete; Phase 1.2 static dependency research and CI verified; Phase 1.3.1 passed. Phase 1.3.2 BMesh WASM experiments are active: source compilation, topology operations and one-shot empty-mesh creation have run successfully; full cleanup and editing are not yet linked.
+> Status: Phase 1.1 architecture complete; Phase 1.2 static dependency research and CI verified, with native OpenColorIO/CMake linker closure still blocked. Phase 1.3.1–1.3.4 isolated Blender-owned WASM feasibility, lifetime tests, mesh transfer and real-browser compatibility passed. Phase 2.1 component classification is complete; Phase 2.2 native core extraction and Phase 2.3 native stabilization remain unfinished.
 >
 > Source baseline: Blender **5.4 Alpha** (`BLENDER_VERSION 504`, cycle `alpha`), commit `67e5a5f874cf37e2a114cebd24f219d8c44a16ad`.
 >
@@ -21,7 +21,7 @@
 | --- | --- | --- |
 | 1.1 — Architecture & feature mapping | Understand code ownership, execution flow, modeling feature boundaries and target scope | Documented architecture, traceable flows, initial feature contract |
 | 1.2 — Dependency analysis | Trace CMake, generated-source, include, symbol and external dependency closure | Auditable dependency graph and candidate extraction boundary |
-| 1.3 — Feasibility | Validate native build and early Emscripten proof of concept | Reproducible native baseline and small Blender-derived WASM operation |
+| 1.3 — Feasibility | Validate original Blender C++ in WASM, BMesh lifecycle, browser geometry transfer and runtime stability | WASM 1.3.1–1.3.4 verified; native configure/link baseline remains a tracked open gate |
 | 2.1 — Component classification | Keep / isolate / replace / exclude decisions | Approved component matrix |
 | 2.2 — Core extraction | Reduce build graph without premature deletion | Buildable reduced native modeling core |
 | 2.3 — Stabilization | Preserve results and memory safety | Regression-tested native core |
@@ -38,11 +38,13 @@
 - [1.2 — Native closure verification handoff](phase-1/1.2-validation-handoff.md)
 - [1.2 — Executed CI verification and remaining linker blocker](phase-1/1.2-ci-verification.md)
 - [1.3.1 — Blender BLI WASM smoke test (verified)](phase-1/1.3.1-bli-wasm.md)
-- [1.3.2 — Genuine BMesh WASM experiments (in progress)](phase-1/1.3.2-bmesh-wasm.md)
+- [1.3.2 — Original Blender BMesh creation/extrusion/lifecycle in WASM (verified)](phase-1/1.3.2-bmesh-wasm.md)
+- [1.3.3 — Real-browser BMesh + copied geometry buffers (verified)](phase-1/1.3.3-browser-mesh.md)
+- [1.3.4 — Performance, memory and three-browser compatibility (verified)](phase-1/1.3.4-stabilization.md)
 
 ## Evidence and limitations
 
-Documented conclusions must distinguish **CMake target links**, **source include/symbol dependencies** and **actual runtime needs**. A target-level edge does not prove that a feature uses a dependency at runtime. Phase 1.1 documents verified representative source paths; it is **not** a file-by-file or link-tested dependency closure. A small genuine Blender BLI implementation has now compiled and executed in WebAssembly in Node.js. The follow-on experiments demonstrate narrow BMesh disk topology execution and one-shot BMesh allocation. They do not demonstrate a complete safe BMesh lifecycle, face extrusion, a browser viewport, or a successful native Blender core build.
+Documented conclusions must distinguish **CMake target links**, **source include/symbol dependencies** and **actual runtime needs**. A target-level edge does not prove that a feature uses a dependency at runtime. Phase 1.1 documents verified representative source paths; it is **not** a file-by-file or link-tested dependency closure. Genuine Blender BLI and BMesh implementation files now compile, link and run as WebAssembly. The isolated BMesh port demonstrates cube creation, actual BMO face extrusion, safe repeated BMesh destruction, opaque handle isolation, JavaScript-owned vertex/index buffers, and execution in Chromium/Firefox/WebKit with matching geometry. The fixed-fixture stress benchmark has run in CI. These achievements do **not** demonstrate a complete extracted native Blender core, native CMake configuration, general polygon/UV editing, rendering, an interactive browser viewport, or production memory-safety/performance. The native OpenColorIO 2.3.0 configure blocker remains explicit.
 
 ### Architecture decision log
 
@@ -51,5 +53,5 @@ Documented conclusions must distinguish **CMake target links**, **source include
 | ADR-001 | Keep Blender 5.4 Alpha as source baseline, SHA above | Confirmed |
 | ADR-002 | Protect `main`, integrate through `blender-for-web` | Confirmed |
 | ADR-003 | Target a web editor centered on modeling, texturing and editing; defer advanced rendering/simulation/animation workflows | Working product boundary; refine in 2.1 |
-| ADR-004 | Investigate minimal geometry WASM core + browser-native UI/viewport before porting entire desktop window/GPU stack | Candidate architecture, not yet proven |
+| ADR-004 | Isolate original Blender BMesh geometry operations behind narrow WASM C ABI; retain browser-native UI/viewport | WASM engine/API feasibility verified, browser viewport not yet implemented |
 | ADR-005 | Exclude by build configuration/refactoring before deleting original sources | Working engineering policy |
