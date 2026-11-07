@@ -1,113 +1,126 @@
 # SPDX-FileCopyrightText: 2026 Blender for Web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Native Blender modeling reference, run with Blender's own Python.
+"""Reference geometry emitted by the *actual pinned Blender executable*.
 
-Example:
-  blender --background --factory-startup --threads 1 \
-    --python tools/blender_web/tests/native_reference.py
-
-This tests Blender's EXISTING BMesh behavior. It does not test an extracted
-library, prove WASM compatibility, or replace sanitizer/memory testing.
+Run using official Blender 5.4 Alpha built from pinned source SHA, never system
+Python or a different Blender release. The comparison runner checks build_hash
+and refuses to accept any unmatching Blender binary.
 """
-
-import hashlib
 import json
 import math
+import os
 import sys
 
 import bmesh
 import bpy
 
+PINNED = "67e5a5f874cf37e2a114cebd24f219d8c44a16ad"
 
-def assert_mesh_is_finite_and_non_degenerate(bm):
-    for vert in bm.verts:
-        assert all(math.isfinite(float(coord)) for coord in vert.co), "non-finite coordinate"
-    for face in bm.faces:
-        assert face.calc_area() > 0.0, "zero-area face"
+
+def xyz(vector):
+    return tuple(round(float(v), 6) for v in vector)
+
+
+def canonical_loop(points):
+    points = tuple(points)
+    assert len(points) >= 3
+    # A cyclic rotation leaves face winding intact; reversal does not.
+    return min(points[n:] + points[:n] for n in range(len(points)))
+
+
+def face_record(points, normal, area):
+    return {"loop": [list(p) for p in canonical_loop(points)],
+            "normal": list(xyz(normal)), "area": round(float(area), 6)}
 
 
 def snapshot(bm):
-    bm.verts.ensure_lookup_table()
-    bm.edges.ensure_lookup_table()
-    bm.faces.ensure_lookup_table()
-    bm.verts.index_update()
-    bm.faces.index_update()
-
-    positions = sorted(
-        (round(float(v.co.x), 6), round(float(v.co.y), 6), round(float(v.co.z), 6))
-        for v in bm.verts
-    )
-    payload = json.dumps(positions, separators=(",", ":"), sort_keys=True)
+    bm.normal_update()
+    for v in bm.verts:
+        assert all(math.isfinite(float(x)) for x in v.co)
+    for face in bm.faces:
+        assert face.calc_area() > 0.0, "degenerate face"
+    positions = sorted(xyz(v.co) for v in bm.verts)
+    edges = sorted(tuple(sorted((xyz(e.verts[0].co), xyz(e.verts[1].co))))
+                   for e in bm.edges)
+    faces = sorted((face_record([xyz(loop.vert.co) for loop in face.loops],
+                                face.normal, face.calc_area()) for face in bm.faces),
+                   key=lambda r: r["loop"])
     return {
         "verts": len(bm.verts),
         "edges": len(bm.edges),
         "faces": len(bm.faces),
-        "triangulated_face_count": sum(len(face.verts) - 2 for face in bm.faces),
-        "position_digest": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+        "loops": sum(len(f.loops) for f in bm.faces),
+        "triangles": sum(len(f.loops) - 2 for f in bm.faces),
+        "positions": [list(p) for p in positions],
+        "edge_geometry": [[list(p) for p in edge] for edge in edges],
+        "face_geometry": faces,
+        "surface_area": round(sum(f.calc_area() for f in bm.faces), 6),
     }
 
 
-def test_bmesh_native():
+def move_extruded_cap(bm, face, amount):
+    result = bmesh.ops.extrude_discrete_faces(bm, faces=[face])
+    caps = result["faces"]
+    assert len(caps) == 1, "Expected one Blender BMO extruded top cap"
+    for v in caps[0].verts:
+        v.co.z += amount
+    bm.normal_update()
+    return caps[0]
+
+
+def test_mesh():
     bm = bmesh.new()
     try:
         bmesh.ops.create_cube(bm, size=2.0)
         bm.normal_update()
-        assert_mesh_is_finite_and_non_degenerate(bm)
         initial = snapshot(bm)
-        assert (initial["verts"], initial["edges"], initial["faces"]) == (8, 12, 6), initial
+        assert (initial["verts"], initial["edges"], initial["faces"], initial["loops"]) == (
+            8, 12, 6, 24)
 
-        # Verify UV custom-data on the editable topology.
+        # This is a Blender reference UV sanity gate, NOT a parity claim for the
+        # reduced core; native UV layer transfer belongs to Phase 2.2.4.
         layer = bm.loops.layers.uv.verify()
         for face in bm.faces:
             for loop in face.loops:
-                loop[layer].uv = (
-                    float(loop.vert.co.x) * 0.5 + 0.5,
-                    float(loop.vert.co.y) * 0.5 + 0.5,
-                )
+                loop[layer].uv = (float(loop.vert.co.x) * .5 + .5,
+                                  float(loop.vert.co.y) * .5 + .5)
         assert sum(len(face.loops) for face in bm.faces) == 24
-
-        # Choose the upper face from actual normals, not an assumed face index.
         upper = max(bm.faces, key=lambda face: float(face.normal.z))
-        assert upper.normal.z > 0.99
-        result = bmesh.ops.extrude_discrete_faces(bm, faces=[upper])
-        caps = result["faces"]
-        assert len(caps) == 1, "expected a single extruded cap"
-        for vertex in caps[0].verts:
-            vertex.co.z += 1.0
-        bm.normal_update()
-        assert_mesh_is_finite_and_non_degenerate(bm)
+        assert upper.normal.z > .99
+        top = move_extruded_cap(bm, upper, 1.0)
+        after1 = snapshot(bm)
+        assert (after1["verts"], after1["edges"], after1["faces"], after1["loops"]) == (
+            12, 20, 10, 40)
+        move_extruded_cap(bm, top, .5)
+        after2 = snapshot(bm)
+        assert (after2["verts"], after2["edges"], after2["faces"], after2["loops"]) == (
+            16, 28, 14, 56)
 
-        extruded = snapshot(bm)
-        assert extruded["verts"] > initial["verts"], extruded
-        assert extruded["faces"] > initial["faces"], extruded
-
-        # Triangulation converts n-gons/quads into the representation
-        # a browser renderer would typically consume.
-        bmesh.ops.triangulate(
-            bm,
-            faces=list(bm.faces),
-            quad_method="BEAUTY",
-            ngon_method="BEAUTY",
-        )
+        bmesh.ops.triangulate(bm, faces=list(bm.faces),
+                              quad_method="BEAUTY", ngon_method="BEAUTY")
         bm.normal_update()
-        assert_mesh_is_finite_and_non_degenerate(bm)
         triangulated = snapshot(bm)
+        assert triangulated["faces"] == 28
         assert all(len(face.verts) == 3 for face in bm.faces)
-        assert triangulated["faces"] == extruded["triangulated_face_count"]
-        return {
-            "initial_cube": initial,
-            "extruded": extruded,
-            "triangulated": triangulated,
-            "uv_layer": True,
-        }
+        return {"cube": initial, "extrude_1": after1, "extrude_2": after2,
+                "triangulated": triangulated, "native_reference_uv_layer": True}
     finally:
         bm.free()
 
 
 def main():
-    version = tuple(bpy.app.version)
-    assert version[:2] == (5, 4), "Use pinned Blender 5.4 Alpha for this reference test"
-    result = {"version": bpy.app.version_string, "bmesh": test_bmesh_native()}
+    build_hash = bpy.app.build_hash
+    if isinstance(build_hash, bytes):
+        build_hash = build_hash.decode("ascii", errors="replace")
+    build_hash = str(build_hash).lower()
+    assert tuple(bpy.app.version)[:2] == (5, 4), "Not Blender 5.4"
+    assert build_hash.startswith(PINNED[:12]), (
+        "Reference is not built from the pinned Blender commit: " + build_hash)
+    result = {"status": "pass", "reference": "official Blender 5.4 Alpha",
+              "pinned_source_commit": PINNED,
+              "blender_build_hash": build_hash,
+              "blender_version": bpy.app.version_string,
+              "reference_cases": test_mesh()}
     print("BLENDER_WEB_NATIVE_REFERENCE=" + json.dumps(result, sort_keys=True))
     return 0
 
