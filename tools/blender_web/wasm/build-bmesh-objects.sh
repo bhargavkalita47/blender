@@ -149,6 +149,9 @@ SUPPORT=(
   source/blender/bmesh/intern/bmesh_iterators.cc
   source/blender/bmesh/intern/bmesh_operators.cc
   source/blender/blenlib/intern/math_vector.cc
+  source/blender/blenlib/intern/math_rotation_c.cc
+  source/blender/blenlib/intern/BLI_memarena.cc
+  source/blender/blenlib/intern/task_range.cc
   source/blender/blenlib/intern/index_mask.cc
   source/blender/blenlib/intern/listbase.cc
   source/blender/blenkernel/intern/mesh_normals.cc
