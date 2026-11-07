@@ -45,6 +45,14 @@ INC=(
 # a build-mode compatibility setting, not a source-model rewrite. Revalidate
 # serialized DNA semantics before any production release.
 FLAGS=(-std=c++20 -O0 -g0 -DNDEBUG -funsigned-char -DFMT_HEADER_ONLY)
+# Make only the native package's header-only fmt files visible to the Emscripten
+# target. Do NOT add /usr/include globally: host libc headers are incompatible
+# with the wasm32 target sysroot.
+if [[ -f /usr/include/fmt/format.h ]]; then
+  mkdir -p "$OUT/wasm-host-headers"
+  cp -a /usr/include/fmt "$OUT/wasm-host-headers/fmt"
+  FLAGS+=("-I$OUT/wasm-host-headers")
+fi
 for dir in "${INC[@]}"; do
   if [[ -d "$ROOT/$dir" ]]; then
     FLAGS+=("-I$ROOT/$dir")
