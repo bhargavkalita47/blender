@@ -33,6 +33,8 @@ must_include = [
     "source/blender/blenkernel/intern/customdata.cc",
     "source/blender/blenkernel/intern/mesh_evaluate.cc",
     "source/blender/blenlib/intern/polyfill_2d.cc",
+    "source/blender/bmesh/operators/bmo_bevel.cc",
+    "source/blender/bmesh/tools/bmesh_bevel.cc",
     "intern/guardedalloc/intern/mallocn.cc",
     "tools/blender_web/wasm/bmesh_handle_api.cc",
     "tools/blender_web/native_core/native_core_smoke.cc",
@@ -42,7 +44,7 @@ missing = sorted(set(must_include) - set(source_relative))
 assert not missing, f"Missing original Blender translation units: {missing}"
 # 53 original source files + 1 ABI bridge + 1 smoke executable, after
 # adding the original BLI/translation implementations required by BMO edits.
-assert len(sources) == 58, f"Expected 55 Blender source units + bridge + 2 C/C++ tests, got {len(sources)}"
+assert len(sources) == 60, f"Expected 57 Blender source units + bridge + 2 C/C++ tests, got {len(sources)}"
 forbidden_prefixes = (
     "source/blender/draw/",
     "source/blender/gpu/",
