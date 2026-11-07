@@ -51,6 +51,8 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/index_mask.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/listbase.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/mesh_normals.cc
+  # Used by Blender BMesh kernel winding reversal during boundary collapse.
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/mesh_evaluate.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/multires.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/customdata_file.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/intern/bmesh_delete.cc
@@ -170,6 +172,6 @@ set_tests_properties(blender_web_native_contract PROPERTIES TIMEOUT 45)
 
 set_tests_properties(blender_web_native_bmesh PROPERTIES TIMEOUT 45)
 
-message(STATUS "Blender Web native-core experimental source count: 55")
+message(STATUS "Blender Web native-core experimental source count: 56")
 message(STATUS "Original Blender source root: ${BLENDER_WEB_SOURCE_ROOT}")
 message(STATUS "This standalone CMake project does NOT run the upstream Blender CMake configuration")
