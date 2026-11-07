@@ -12,6 +12,7 @@ on:
     branches:
       - dev/p2-uv-attributes
       - dev/p2-api-consolidation
+      - dev/p2-2-completion
   workflow_dispatch:
 
 permissions:
