@@ -36,6 +36,7 @@
 - [1.2 — CMake target graph and SCCs](phase-1/1.2-target-graph.md)
 - [1.2 — Cuboid/BMesh source paths](phase-1/1.2-source-closure.md)
 - [1.2 — Native closure verification handoff](phase-1/1.2-validation-handoff.md)
+- [1.2 — Executed CI verification and remaining linker blocker](phase-1/1.2-ci-verification.md)
 
 ## Evidence and limitations
 
