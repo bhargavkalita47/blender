@@ -69,6 +69,11 @@ def main():
         for v in cap[0].verts:
             v.co.z += 1.0
     results["extruded_plane"] = capture("extruded_plane", extrude_plane)
+    def subdivide_plane(bm):
+        bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1.0)
+        bmesh.ops.subdivide_edges(
+            bm, edges=list(bm.edges), cuts=1, use_grid_fill=True)
+    results["subdivided_plane"] = capture("subdivided_plane", subdivide_plane)
     result = {"status":"pass","blender_build_hash":str(build_hash).lower(),
               "pinned_source_sha":PINNED,"shapes":results}
     print("BLENDER_WEB_EXPANDED_ORIGINAL=" + json.dumps(result,sort_keys=True))
