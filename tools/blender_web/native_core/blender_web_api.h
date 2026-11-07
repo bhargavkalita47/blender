@@ -59,6 +59,11 @@ int web_mesh_memory_bytes(void);
  * pointers. Call count first; any change to topology invalidates old counts.
  * Return is written float/index count or a negative failure code.
  */
+/* Current BMesh iteration counts; not persistent selection IDs. */
+int web_mesh_verts(int handle);
+int web_mesh_edges(int handle);
+int web_mesh_faces(int handle);
+int web_mesh_loops(int handle);
 int web_mesh_position_float_count(int handle);
 int web_mesh_triangle_index_count(int handle);
 int web_mesh_copy_positions(int handle, float *out, int float_capacity);
