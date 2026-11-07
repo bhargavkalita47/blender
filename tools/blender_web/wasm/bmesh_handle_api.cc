@@ -316,10 +316,10 @@ int web_mesh_copy_triangles(int handle, std::uint32_t *out, int index_capacity)
   int i = 0;
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
     blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
-    const std::uint32_t a = std::uint32_t(BM_elem_index_get(loop->v));
-    const std::uint32_t b = std::uint32_t(BM_elem_index_get(loop->next->v));
-    const std::uint32_t c = std::uint32_t(BM_elem_index_get(loop->next->next->v));
-    const std::uint32_t d = std::uint32_t(BM_elem_index_get(loop->prev->v));
+    const std::uint32_t a = std::uint32_t(blender::BM_elem_index_get(loop->v));
+    const std::uint32_t b = std::uint32_t(blender::BM_elem_index_get(loop->next->v));
+    const std::uint32_t c = std::uint32_t(blender::BM_elem_index_get(loop->next->next->v));
+    const std::uint32_t d = std::uint32_t(blender::BM_elem_index_get(loop->prev->v));
     out[i++] = a;
     out[i++] = b;
     out[i++] = c;
