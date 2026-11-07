@@ -27,6 +27,14 @@ core.web_mesh_poke_face.argtypes = [ctypes.c_int, ctypes.c_int]
 core.web_mesh_poke_face.restype = ctypes.c_int
 core.web_mesh_inset_face.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float]
 core.web_mesh_inset_face.restype = ctypes.c_int
+core.web_mesh_select_element.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int]
+core.web_mesh_select_element.restype = ctypes.c_int
+core.web_mesh_selected_element_count.argtypes = [ctypes.c_int,ctypes.c_int]
+core.web_mesh_selected_element_count.restype = ctypes.c_int
+core.web_mesh_delete_element.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_int]
+core.web_mesh_delete_element.restype = ctypes.c_int
+core.web_mesh_extrude_face_z.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_float]
+core.web_mesh_extrude_face_z.restype = ctypes.c_int
 
 FIXTURES = [
     ("grid_3x2", lambda: core.web_mesh_create_grid(3, 2), (12, 17, 6, 24, 12)),
@@ -123,6 +131,37 @@ def main():
             inset_snapshot["triangles"]) == (8,12,5,20,10), inset_snapshot
     assert core.web_mesh_destroy(inset)==0
 
+    extruded = core.web_mesh_create_plane()
+    assert extruded > 0
+    before_extrude = snapshot(extruded)
+    assert core.web_mesh_extrude_face_z(extruded, 0, math.nan) == -2
+    assert snapshot(extruded) == before_extrude
+    assert core.web_mesh_extrude_face_z(extruded, 0, 1.0) == 0
+    extruded_snapshot = snapshot(extruded)
+    assert (extruded_snapshot["verts"], extruded_snapshot["edges"],
+            extruded_snapshot["faces"], extruded_snapshot["loops"],
+            extruded_snapshot["triangles"]) == (8, 12, 6, 24, 12)
+    assert core.web_mesh_select_element(extruded, 3, 0, 1) == 0
+    assert core.web_mesh_selected_element_count(extruded, 3) == 1
+    assert core.web_mesh_select_element(extruded, 3, 0, 0) == 0
+    assert core.web_mesh_selected_element_count(extruded, 3) == 0
+    assert core.web_mesh_select_element(extruded, 2, 0, 1) == 0
+    assert core.web_mesh_selected_element_count(extruded, 2) == 1
+    assert core.web_mesh_select_element(extruded, 2, 0, 0) == 0
+    assert core.web_mesh_selected_element_count(extruded, 2) == 0
+    assert core.web_mesh_select_element(extruded, 9, 0, 1) == -2
+    assert core.web_mesh_delete_element(extruded, 9, 0) == -2
+    assert core.web_mesh_destroy(extruded) == 0
+
+    grid_for_deletion = core.web_mesh_create_grid(2, 2)
+    assert core.web_mesh_delete_element(grid_for_deletion, 3, 0) == 0
+    assert core.web_mesh_validate_topology(grid_for_deletion) == 0
+    assert core.web_mesh_destroy(grid_for_deletion) == 0
+    vertex_for_deletion = core.web_mesh_create_plane()
+    assert core.web_mesh_delete_element(vertex_for_deletion, 1, 0) == 0
+    assert core.web_mesh_validate_topology(vertex_for_deletion) == 0
+    assert core.web_mesh_destroy(vertex_for_deletion) == 0
+
     plane = core.web_mesh_create_plane()
     assert plane > 0
     assert core.web_mesh_delete_face(plane, 0) == 0
@@ -153,6 +192,8 @@ def main():
         "new_primitive_lifecycle_cycles":600, "vertex_selection_transforms":True,
         "face_deletion":True, "original_blender_bmo_poke":True,
         "poked_plane":poked, "inset_plane":inset_snapshot,
+        "extruded_plane":extruded_snapshot, "general_face_extrusion":True,
+        "edge_face_selection":True, "vertex_edge_face_deletion":True,
         "original_blender_bmo_inset":True,
         "multi_mesh_independence":True,
         "invalid_parameters_rejected":True, "tracked_allocations_before":baseline,
