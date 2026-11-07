@@ -46,6 +46,17 @@ int web_bmesh_square_vertex_degree(int vertex)
   return blender::bmesh_disk_count(&wire.verts[vertex]);
 }
 
+/* Check whether two vertices really share a Blender disk edge. */
+int web_bmesh_square_edge_exists(int vertex_a, int vertex_b)
+{
+  if (vertex_a < 0 || vertex_a >= 4 || vertex_b < 0 || vertex_b >= 4) {
+    return -1;
+  }
+  SquareWire wire;
+  return blender::bmesh_disk_edge_exists(&wire.verts[vertex_a],
+                                          &wire.verts[vertex_b]) ? 1 : 0;
+}
+
 /* Verifies the disk cycle for all four vertices. */
 int web_bmesh_square_validate()
 {
@@ -88,6 +99,10 @@ int web_bmesh_after_vertex_relink()
       blender::bmesh_disk_count(&wire.verts[3]) != 2)
   {
     return -1;
+  }
+  if (blender::bmesh_disk_edge_exists(&wire.verts[0], &wire.verts[1]) != nullptr ||
+      blender::bmesh_disk_edge_exists(&wire.verts[0], &wire.verts[2]) != &wire.edges[0]) {
+    return -2;
   }
   return blender::bmesh_disk_count(&wire.verts[2]);
 }
