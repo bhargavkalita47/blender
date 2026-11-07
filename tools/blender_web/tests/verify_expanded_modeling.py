@@ -59,11 +59,13 @@ def main():
                      (core.web_mesh_create_uv_sphere, (8, 40))):
         assert fn(*args) == -4
     assert core.web_mesh_live_count() == 0
+    reference_cases = {}
     for name, factory, expected in FIXTURES:
         h = factory()
         assert h > 0, (name,h)
         try:
             counts = snapshot(h)
+            reference_cases[name] = counts
             assert tuple(counts[k] for k in ("verts","edges","faces","loops","triangles")) == expected, (name,counts)
         finally:
             assert core.web_mesh_destroy(h) == 0
@@ -121,6 +123,7 @@ def main():
     assert core.web_mesh_memory_bytes()==baseline
     print("BLENDER_WEB_EXPANDED_NATIVE=" + json.dumps({
         "status":"pass", "fixtures":{name:list(expected) for name,_,expected in FIXTURES},
+        "reference_cases":reference_cases,
         "new_primitive_lifecycle_cycles":600, "vertex_selection_transforms":True,
         "face_deletion":True, "multi_mesh_independence":True,
         "invalid_parameters_rejected":True, "tracked_allocations_before":baseline,
