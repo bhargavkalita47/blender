@@ -43,11 +43,13 @@ jobs:
 
       - name: Link independently shared native modeling core with no undefined symbols
         run: |
+          set -o pipefail
           cmake --build build/blender_web/native_core --parallel 4 --verbose \
             | tee build/blender_web/native-core-build.log
 
       - name: Execute independent Blender BMesh native C ABI regression
         run: |
+          set -o pipefail
           ctest --test-dir build/blender_web/native_core --output-on-failure \
             | tee build/blender_web/native-core-ctest.log
           build/blender_web/native_core/blender_web_native_smoke \
