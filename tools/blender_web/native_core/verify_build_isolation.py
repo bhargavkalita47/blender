@@ -34,12 +34,13 @@ must_include = [
     "intern/guardedalloc/intern/mallocn.cc",
     "tools/blender_web/wasm/bmesh_handle_api.cc",
     "tools/blender_web/native_core/native_core_smoke.cc",
+    "tools/blender_web/native_core/native_core_abi_contract.c",
 ]
 missing = sorted(set(must_include) - set(source_relative))
 assert not missing, f"Missing original Blender translation units: {missing}"
 # 53 original source files + 1 ABI bridge + 1 smoke executable, after
 # adding the original BLI/translation implementations required by BMO edits.
-assert len(sources) == 55, f"Expected 53 original Blender sources + bridge + smoke, got {len(sources)}"
+assert len(sources) == 56, f"Expected 53 Blender source units + bridge + 2 C/C++ tests, got {len(sources)}"
 forbidden_prefixes = (
     "source/blender/draw/",
     "source/blender/gpu/",
@@ -79,9 +80,9 @@ for symbol in ("web_mesh_create_cube", "web_mesh_extrude_top",
 report = {
     "status": "pass",
     "scope": "isolated original Blender BMesh experimental native core",
-    "original_blender_translation_units": len(sources) - 2,
+    "original_blender_translation_units": len(sources) - 3,
     "abi_bridge_translation_units": 1,
-    "native_test_translation_units": 1,
+    "native_test_translation_units": 2,
     "native_desktop_sources": bad_sources,
     "unexpected_native_window_renderer_symbols": prohibited_symbols,
     "direct_dynamic_libraries": dependencies,

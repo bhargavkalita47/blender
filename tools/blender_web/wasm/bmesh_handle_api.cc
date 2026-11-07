@@ -215,6 +215,36 @@ int create_extended_primitive(int kind, int segments, int rings)
 
 extern "C" {
 
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+// Versioned discovery is deliberately separate from Blender's C++ layouts.
+// Revision 1 is experimental and NOT a stable binary-release guarantee.
+int web_mesh_api_revision()
+{
+  return 1;
+}
+
+std::uint32_t web_mesh_api_capabilities()
+{
+  std::uint32_t caps = (1u << 0) | (1u << 1);  // core and component selection
+#  if defined(BLENDER_WEB_NATIVE_INSET)
+  caps |= (1u << 2);
+#  endif
+#  if defined(BLENDER_WEB_NATIVE_SUBDIVIDE)
+  caps |= (1u << 3);
+#  endif
+#  if defined(BLENDER_WEB_NATIVE_UV)
+  caps |= (1u << 4);
+#  endif
+  return caps;
+}
+
+int web_mesh_api_max_live_meshes()
+{
+  return int(kCapacity);
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
+
+
 int web_mesh_create_cube()
 {
   unsigned index = kCapacity;

@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 2.2.5 experimental C ABI contract
+
+on:
+  push:
+    branches:
+      - dev/p2-api-consolidation
+  pull_request:
+    branches:
+      - dev/p2-uv-attributes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  abi-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            source/blender
+            intern
+            extern
+            tools/blender_web
+          sparse-checkout-cone-mode: false
+      - name: Install original Blender source dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang ninja-build libfmt-dev binutils \
+            libx11-6 libxi6 libxrender1 libxkbcommon0 libegl1 libopengl0 \
+            libgl1 libglib2.0-0 libsm6 libxext6
+      - name: Build extracted native core and standalone C client
+        run: |
+          cmake -S tools/blender_web/native_core \
+            -B build/blender_web/native_core -G Ninja \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/blender_web/native_core --parallel 4
+          ctest --test-dir build/blender_web/native_core --output-on-failure
+          python3 tools/blender_web/native_core/verify_build_isolation.py \
+            build/blender_web/native_core
+      - name: Run inherited BMesh and experimental UV regressions
+        run: |
+          set -o pipefail
+          mkdir -p build/blender_web
+          python3 tools/blender_web/tests/verify_modeling_ops.py \
+            build/blender_web/native_core/libblender_web_native_core.so \
+            | tee build/blender_web/modeling-native.log
+          python3 tools/blender_web/tests/verify_expanded_modeling.py \
+            build/blender_web/native_core/libblender_web_native_core.so \
+            | tee build/blender_web/expanded-native.log
+          python3 tools/blender_web/tests/verify_uv_attributes.py \
+            build/blender_web/native_core/libblender_web_native_core.so \
+            | tee build/blender_web/uv-native.log
+      - name: Obtain official Blender 5.4 Alpha exact-source reference
+        run: |
+          python3 tools/blender_web/tests/download_pinned_reference.py \
+            build/blender_web/pinned_reference
+      - name: Compare pinned Blender native model and UV reference
+        run: |
+          set -o pipefail
+          BLENDER_BIN="$(cat build/blender_web/pinned_reference/blender_path.txt)"
+          "$BLENDER_BIN" --background --factory-startup --disable-autoexec \
+            --python-exit-code 1 \
+            --python tools/blender_web/tests/expanded_modeling_reference.py \
+            2>&1 | tee build/blender_web/expanded-original.log
+          python3 tools/blender_web/tests/compare_expanded_primitives.py \
+            build/blender_web/expanded-original.log \
+            build/blender_web/expanded-native.log \
+            build/blender_web/expanded-parity.json
+          "$BLENDER_BIN" --background --factory-startup --disable-autoexec \
+            --python-exit-code 1 \
+            --python tools/blender_web/tests/uv_reference.py \
+            2>&1 | tee build/blender_web/uv-original.log
+          python3 tools/blender_web/tests/compare_uv_reference.py \
+            build/blender_web/uv-original.log \
+            build/blender_web/uv-native.log \
+            build/blender_web/uv-parity.json
+      - name: Archive exact contract and regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-phase-2-2-5-abi-evidence
+          path: |
+            build/blender_web/*.log
+            build/blender_web/*parity.json
+            build/blender_web/native_core/isolation-report.json
+            build/blender_web/native_core/Testing/Temporary/LastTest.log
+            build/blender_web/pinned_reference/reference_provenance.json
+          if-no-files-found: warn
+          retention-days: 30

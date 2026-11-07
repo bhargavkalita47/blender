@@ -5,7 +5,7 @@
 # BMesh, BLI and BKE. Not part of Blender's native app CMake target graph.
 # This is a bounded source-level proof, not a production general editor.
 cmake_minimum_required(VERSION 3.25)
-project(BlenderWebNativeCore VERSION 0.1 LANGUAGES CXX)
+project(BlenderWebNativeCore VERSION 0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -127,7 +127,7 @@ set_source_files_properties(
 target_include_directories(blender_web_native_core PRIVATE
   ${BLENDER_WEB_NATIVE_INCLUDES} ${FMT_INCLUDE_DIR})
 target_compile_definitions(blender_web_native_core PRIVATE
-  NDEBUG FMT_HEADER_ONLY BLENDER_WEB_MINIMAL_BMO BLENDER_WEB_NATIVE_POKE BLENDER_WEB_NATIVE_INSET BLENDER_WEB_NATIVE_SUBDIVIDE BLENDER_WEB_NATIVE_UV)
+  NDEBUG FMT_HEADER_ONLY BLENDER_WEB_MINIMAL_BMO BLENDER_WEB_NATIVE_POKE BLENDER_WEB_NATIVE_INSET BLENDER_WEB_NATIVE_SUBDIVIDE BLENDER_WEB_NATIVE_UV BLENDER_WEB_NATIVE_CORE_ABI)
 # Required by existing Blender bit-7 flag enums in the current source build.
 # DNA serialization semantics must be validated before general native parity.
 target_compile_options(blender_web_native_core PRIVATE
@@ -144,6 +144,16 @@ target_link_libraries(blender_web_native_smoke PRIVATE blender_web_native_core)
 
 enable_testing()
 add_test(NAME blender_web_native_bmesh COMMAND blender_web_native_smoke)
+# Phase 2.2.5 independent true C consumer of the C++-linked Blender BMesh
+# library, with only the explicitly declared opaque public interface.
+add_executable(blender_web_native_contract
+  "${CMAKE_CURRENT_LIST_DIR}/native_core_abi_contract.c")
+target_include_directories(blender_web_native_contract PRIVATE
+  "${CMAKE_CURRENT_LIST_DIR}")
+target_link_libraries(blender_web_native_contract PRIVATE blender_web_native_core)
+add_test(NAME blender_web_native_contract COMMAND blender_web_native_contract)
+set_tests_properties(blender_web_native_contract PROPERTIES TIMEOUT 45)
+
 set_tests_properties(blender_web_native_bmesh PROPERTIES TIMEOUT 45)
 
 message(STATUS "Blender Web native-core experimental source count: 54")
