@@ -1,6 +1,6 @@
 # Blender for Web — Project Engineering Index
 
-> Status: Phase 1.1 architecture complete; Phase 1.2 static dependency research and CI verified, with native OpenColorIO/CMake linker closure still blocked. Phase 1.3.1–1.3.4 isolated Blender-owned WASM feasibility, lifetime tests, mesh transfer and real-browser compatibility passed. Phase 2.1 component classification is complete. Phase 2.2 is active on `dev/p2-core-extraction`: independent native original-Blender BMesh linking and 1,000-cycle lifetime tests have passed, and **2.2.2 reference geometry parity passed against the official Blender 5.4 Alpha executable built from our exact pinned source hash**. General-core extraction, UV parity and Phase 2.3 stabilization remain incomplete. Phase 2.3 native stabilization remains unfinished.
+> Status: Phase 1.1 architecture complete; Phase 1.2 static dependency research and CI verified, with native OpenColorIO/CMake linker closure still blocked. Phase 1.3.1–1.3.4 isolated Blender-owned WASM feasibility, lifetime tests, mesh transfer and real-browser compatibility passed. Phase 2.1 component classification is complete. Phase 2.2 is active on `dev/p2-core-extraction`: independent native original-Blender BMesh linking and 1,000-cycle lifetime tests have passed, and **2.2.2 reference geometry parity passed against the official Blender 5.4 Alpha executable built from our exact pinned source hash**. Phase 2.2.3 is initiated on `dev/p2-modeling-ops`; its first plane and whole-mesh translation slice has independently passed native topology, lifetime and source-pinned parity tests. General-core extraction, UV parity and Phase 2.3 stabilization remain incomplete. Phase 2.3 native stabilization remains unfinished.
 >
 > Source baseline: Blender **5.4 Alpha** (`BLENDER_VERSION 504`, cycle `alpha`), commit `67e5a5f874cf37e2a114cebd24f219d8c44a16ad`.
 >
@@ -47,9 +47,10 @@
 - [2.1 — Component classification and reduction policy (complete)](phase-2/2.1-classification.md)
 - [2.2 — Native Blender BMesh core extraction (active)](phase-2/2.2-extraction.md)
 - [2.2.2 — Source-pinned Blender reference geometry parity (verified)](phase-2/2.2.2-reference-parity.md)
+- [2.2.3 — Expanded modeling operators (initiated; plane + translation slice verified)](phase-2/2.2.3-modeling-operations.md)
 - [2.3 — Native core stabilization criteria (planned)](phase-2/2.3-stabilization.md)
 
-Phase 2.2 uses a standalone CMake project to attempt direct native linking of selected **original** Blender BMesh/BKE/BLI code and verify desktop-GPU/window-manager isolation. A successful independent native BMesh fixture build is an intermediate gate; general mesh functionality, reference parity and the full native Blender CMake issue remain outstanding.
+Phase 2.2 uses a standalone CMake project that successfully linked selected **original** Blender BMesh/BKE/BLI code without a desktop-GPU/window-manager dependency. Source-pinned cube/extrusion parity (2.2.2) and initial plane/translation parity (2.2.3 slice) passed. Broader modeling operations, UV/attributes, complete native Blender CMake closure and Phase 2.3 remain outstanding.
 
 ## Evidence and limitations
 
