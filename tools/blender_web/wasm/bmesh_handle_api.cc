@@ -668,6 +668,50 @@ int web_mesh_extrude_top(int handle, float delta_z)
   return 0;
 }
 
+// Original Blender discrete-face extrusion for any face, including open
+// planes and convex n-gon caps. Displacement is along global Z in this bounded
+// adapter; a face-local normal transform needs extra orientation state.
+int web_mesh_extrude_face_z(int handle, int face_index, float distance)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (face_index < 0 || face_index >= slot->mesh->totface ||
+      !std::isfinite(distance)) return -2;
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    if (i++ != face_index) continue;
+    blender::BMOperator op;
+    blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "extrude_discrete_faces");
+    blender::BMO_slot_buffer_from_single(
+        &op, blender::BMO_slot_get(op.slots_in, "faces"), &face->head);
+    blender::BMO_op_exec(slot->mesh, &op);
+    blender::BMOIter output;
+    blender::BMFace *cap = nullptr;
+    blender::BMFace *new_top = nullptr;
+    unsigned caps = 0;
+    BMO_ITER (cap, &output, op.slots_out, "faces.out", blender::BM_FACE) {
+      ++caps;
+      new_top = cap;
+      blender::BMLoop *loop = BM_FACE_FIRST_LOOP(cap);
+      blender::BMLoop *first = loop;
+      do {
+        loop->v->co[2] += distance;
+        loop = loop->next;
+      } while (loop != first);
+    }
+    blender::BMO_op_finish(slot->mesh, &op);
+    if (caps != 1 || !new_top) {
+      slot->top_face = nullptr;
+      return -3;
+    }
+    slot->top_face = new_top;
+    return 0;
+  }
+  return -3;
+}
+
 /* Check linked BMesh face loops, edge endpoints and radial adjacency.
  * This validates actual Blender topology after each modeling operation. */
 int web_mesh_validate_topology(int handle)
