@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 2.2 sanitizer and native C ABI gates
+
+on:
+  push:
+    branches:
+      - dev/p2-2-completion
+  pull_request:
+    branches:
+      - dev/p2-api-consolidation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sanitizer-bmesh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout pinned original Blender sources
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            source/blender
+            intern
+            extern
+            tools/blender_web
+          sparse-checkout-cone-mode: false
+
+      - name: Install isolated native toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang ninja-build libfmt-dev binutils
+
+      - name: Build with AddressSanitizer and UndefinedBehaviorSanitizer
+        run: |
+          cmake -S tools/blender_web/native_core \
+            -B build/blender_web/native_sanitized -G Ninja \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBLENDER_WEB_SANITIZE=ON
+          cmake --build build/blender_web/native_sanitized --parallel 4
+
+      - name: Execute independent C contract and C++ Blender BMesh lifetime tests
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:abort_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          ctest --test-dir build/blender_web/native_sanitized \
+            --output-on-failure --timeout 120
+          python3 tools/blender_web/native_core/verify_build_isolation.py \
+            build/blender_web/native_sanitized
+
+      - name: Archive sanitizer and linker evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-p2-2-address-undefined-sanitizer
+          path: |
+            build/blender_web/native_sanitized/Testing/Temporary/LastTest.log
+            build/blender_web/native_sanitized/isolation-report.json
+            build/blender_web/native_sanitized/compile_commands.json
+          if-no-files-found: warn
+          retention-days: 30

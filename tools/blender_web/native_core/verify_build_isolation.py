@@ -31,6 +31,8 @@ must_include = [
     "source/blender/bmesh/operators/bmo_subdivide.cc",
     "source/blender/bmesh/intern/bmesh_structure.cc",
     "source/blender/blenkernel/intern/customdata.cc",
+    "source/blender/blenkernel/intern/mesh_evaluate.cc",
+    "source/blender/blenlib/intern/polyfill_2d.cc",
     "intern/guardedalloc/intern/mallocn.cc",
     "tools/blender_web/wasm/bmesh_handle_api.cc",
     "tools/blender_web/native_core/native_core_smoke.cc",
@@ -40,7 +42,7 @@ missing = sorted(set(must_include) - set(source_relative))
 assert not missing, f"Missing original Blender translation units: {missing}"
 # 53 original source files + 1 ABI bridge + 1 smoke executable, after
 # adding the original BLI/translation implementations required by BMO edits.
-assert len(sources) == 56, f"Expected 53 Blender source units + bridge + 2 C/C++ tests, got {len(sources)}"
+assert len(sources) == 58, f"Expected 55 Blender source units + bridge + 2 C/C++ tests, got {len(sources)}"
 forbidden_prefixes = (
     "source/blender/draw/",
     "source/blender/gpu/",
@@ -74,7 +76,8 @@ defined = subprocess.run(["nm", "-D", "--defined-only", str(library)],
                          capture_output=True, text=True, check=True).stdout
 for symbol in ("web_mesh_create_cube", "web_mesh_extrude_top",
                "web_mesh_destroy", "web_mesh_copy_positions",
-               "web_mesh_copy_triangles", "web_mesh_validate_topology"):
+               "web_mesh_copy_triangles", "web_mesh_copy_triangle_corners",
+               "web_mesh_create_polygon_xy", "web_mesh_validate_topology"):
     assert re.search(rf"\b{symbol}\b", defined), f"Missing exported API {symbol}"
 
 report = {

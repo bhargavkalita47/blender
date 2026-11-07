@@ -12,6 +12,27 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+option(BLENDER_WEB_SANITIZE "Build extracted Blender BMesh with ASan and UBSan" OFF)
+if(BLENDER_WEB_SANITIZE)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    message(FATAL_ERROR "Sanitizers require GCC or Clang")
+  endif()
+  # Blender's BMesh iterator jump table deliberately erases function pointer
+  # signatures; Clang's UBSan function-type checker diagnoses those valid
+  # dispatches as incompatible. Keep ASan + the other UBSan checks enabled.
+  add_compile_options(-fsanitize=address,undefined -fno-sanitize=function
+                      -fno-omit-frame-pointer -O1)
+  add_link_options(-fsanitize=address,undefined -fno-sanitize=function)
+  # Blender's BLI_mempool packs arbitrary-size CustomData elements and uses a
+  # BLI_freenode pointer overlay; some layer strides are 4-byte rather than
+  # pointer-aligned. UBSan's strict alignment checker flags this Blender
+  # allocator's internal freelist layout. Suppress only that source/category;
+  # retain full ASan, other UBSan checks, and bridge alignment instrumentation.
+  set_source_files_properties(
+    "${CMAKE_CURRENT_LIST_DIR}/../../../source/blender/blenlib/intern/BLI_mempool.cc"
+    PROPERTIES COMPILE_OPTIONS "-fno-sanitize=alignment")
+endif()
+
 get_filename_component(BLENDER_WEB_SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 if(NOT EXISTS "${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/bmesh.hh")
   message(FATAL_ERROR "Expected full Blender source checkout at ${BLENDER_WEB_SOURCE_ROOT}")
@@ -42,6 +63,8 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/index_mask.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/listbase.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/mesh_normals.cc
+  # Used by Blender BMesh kernel winding reversal during boundary collapse.
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/mesh_evaluate.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/multires.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/customdata_file.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/intern/bmesh_delete.cc
@@ -65,6 +88,8 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/task_pool.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/task_scheduler.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/math_geom.cc
+  # Original Blender BLI concave polygon triangulation used by BM_face_calc_tessellation.
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/polyfill_2d.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/threads.cc
   # Original Blender providers required by expanded BMO inset/subdivide:
   # UTF-8 names, Blender translation (internationalization disabled in
@@ -134,13 +159,22 @@ target_compile_options(blender_web_native_core PRIVATE
   -funsigned-char -ffunction-sections -fdata-sections)
 target_link_libraries(blender_web_native_core PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_link_options(blender_web_native_core PRIVATE
-    "-Wl,--no-undefined" "-Wl,--gc-sections")
+  if(BLENDER_WEB_SANITIZE)
+    # Clang's shared ASan build resolves sanitizer instrumentation from the
+    # instrumented C/C++ test executables, not from a standalone shared runtime.
+    # --no-undefined applies to the ordinary shipping target, not this job.
+    target_link_options(blender_web_native_core PRIVATE "-Wl,--gc-sections")
+  else()
+    target_link_options(blender_web_native_core PRIVATE
+      "-Wl,--no-undefined" "-Wl,--gc-sections")
+  endif()
 endif()
 
 add_executable(blender_web_native_smoke
   "${CMAKE_CURRENT_LIST_DIR}/native_core_smoke.cc")
 target_link_libraries(blender_web_native_smoke PRIVATE blender_web_native_core)
+# Release builds otherwise define NDEBUG and silently remove all smoke asserts.
+target_compile_options(blender_web_native_smoke PRIVATE -UNDEBUG)
 
 enable_testing()
 add_test(NAME blender_web_native_bmesh COMMAND blender_web_native_smoke)
@@ -151,11 +185,17 @@ add_executable(blender_web_native_contract
 target_include_directories(blender_web_native_contract PRIVATE
   "${CMAKE_CURRENT_LIST_DIR}")
 target_link_libraries(blender_web_native_contract PRIVATE blender_web_native_core)
+target_compile_options(blender_web_native_contract PRIVATE -UNDEBUG)
+if(BLENDER_WEB_SANITIZE)
+  # This is still compiled as plain C, but Clang's C++ UBSan vptr runtime
+  # is required by the instrumented Blender C++ DSO at final executable link.
+  set_target_properties(blender_web_native_contract PROPERTIES LINKER_LANGUAGE CXX)
+endif()
 add_test(NAME blender_web_native_contract COMMAND blender_web_native_contract)
 set_tests_properties(blender_web_native_contract PROPERTIES TIMEOUT 45)
 
 set_tests_properties(blender_web_native_bmesh PROPERTIES TIMEOUT 45)
 
-message(STATUS "Blender Web native-core experimental source count: 54")
+message(STATUS "Blender Web native-core experimental source count: 56")
 message(STATUS "Original Blender source root: ${BLENDER_WEB_SOURCE_ROOT}")
 message(STATUS "This standalone CMake project does NOT run the upstream Blender CMake configuration")

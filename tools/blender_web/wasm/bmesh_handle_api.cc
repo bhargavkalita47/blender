@@ -235,6 +235,11 @@ std::uint32_t web_mesh_api_capabilities()
 #  if defined(BLENDER_WEB_NATIVE_UV)
   caps |= (1u << 4);
 #  endif
+  // Original Blender polygon tessellation and corresponding per-corner mapping.
+  caps |= (1u << 5) | (1u << 6) | (1u << 8) | (1u << 9);
+#  if defined(BLENDER_WEB_NATIVE_UV)
+  caps |= (1u << 7) | (1u << 10);
+#  endif
   return caps;
 }
 
@@ -332,6 +337,96 @@ int web_mesh_create_uv_sphere(int segments, int rings)
 {
   return create_extended_primitive(3, segments, rings);
 }
+
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Create a bounded, simple planar XY polygon from client coordinates.
+ * Reject repeated vertices, self-intersections, degenerate area, and
+ * non-finite or extreme inputs before allocating any Blender BMesh state.
+ * The original BMesh constructors own the actual geometry.
+ */
+int web_mesh_create_polygon_xy(const float *xy, int vertex_count)
+{
+  if (xy == nullptr || vertex_count < 3 || vertex_count > 128) {
+    return -4;
+  }
+  constexpr double eps = 1e-10;
+  for (int i = 0; i < vertex_count; ++i) {
+    const float x = xy[2 * i], y = xy[2 * i + 1];
+    if (!std::isfinite(x) || !std::isfinite(y) ||
+        std::fabs(x) > 1e6f || std::fabs(y) > 1e6f) {
+      return -4;
+    }
+    for (int j = 0; j < i; ++j) {
+      const double dx = double(x) - xy[2 * j];
+      const double dy = double(y) - xy[2 * j + 1];
+      if (dx * dx + dy * dy < eps * eps) return -4;
+    }
+  }
+  const auto orient = [&](int a, int b, int c) {
+    return (double(xy[2 * b]) - xy[2 * a]) *
+               (double(xy[2 * c + 1]) - xy[2 * a + 1]) -
+           (double(xy[2 * b + 1]) - xy[2 * a + 1]) *
+               (double(xy[2 * c]) - xy[2 * a]);
+  };
+  const auto on_segment = [&](int a, int b, int p) {
+    return double(xy[2 * p]) >= std::min(double(xy[2 * a]), double(xy[2 * b])) - eps &&
+           double(xy[2 * p]) <= std::max(double(xy[2 * a]), double(xy[2 * b])) + eps &&
+           double(xy[2 * p + 1]) >= std::min(double(xy[2 * a + 1]), double(xy[2 * b + 1])) - eps &&
+           double(xy[2 * p + 1]) <= std::max(double(xy[2 * a + 1]), double(xy[2 * b + 1])) + eps;
+  };
+  double twice_area = 0.0;
+  for (int i = 0; i < vertex_count; ++i) {
+    const int next = (i + 1) % vertex_count;
+    twice_area += double(xy[2 * i]) * xy[2 * next + 1] -
+                  double(xy[2 * next]) * xy[2 * i + 1];
+    // Non-neighboring edges must not intersect or overlap.
+    for (int j = i + 1; j < vertex_count; ++j) {
+      const int j_next = (j + 1) % vertex_count;
+      if (i == j || next == j || j_next == i) continue;
+      const double a = orient(i, next, j), b = orient(i, next, j_next);
+      const double c = orient(j, j_next, i), d = orient(j, j_next, next);
+      if (((a > eps && b < -eps) || (a < -eps && b > eps)) &&
+          ((c > eps && d < -eps) || (c < -eps && d > eps))) return -4;
+      if ((std::fabs(a) <= eps && on_segment(i, next, j)) ||
+          (std::fabs(b) <= eps && on_segment(i, next, j_next)) ||
+          (std::fabs(c) <= eps && on_segment(j, j_next, i)) ||
+          (std::fabs(d) <= eps && on_segment(j, j_next, next))) return -4;
+    }
+  }
+  if (std::fabs(twice_area) <= eps) return -4;
+
+  unsigned index = kCapacity;
+  for (unsigned i = 0; i < kCapacity; ++i) {
+    if (!slots[i].mesh) { index = i; break; }
+  }
+  if (index == kCapacity) return -3;
+
+  const blender::BMeshCreateParams params{true};
+  blender::BMesh *bm = blender::BM_mesh_create(&blender::bm_mesh_allocsize_default, &params);
+  if (!bm) return -2;
+  blender::BMVert *vertices[128]{};
+  bool ok = true;
+  for (int i = 0; i < vertex_count; ++i) {
+    const float co[3] = {xy[2 * i], xy[2 * i + 1], 0.0f};
+    vertices[i] = blender::BM_vert_create(bm, co, nullptr, blender::BM_CREATE_NOP);
+    if (!vertices[i]) { ok = false; break; }
+  }
+  blender::BMFace *face = nullptr;
+  if (ok) {
+    face = blender::BM_face_create_verts(
+        bm, vertices, vertex_count, nullptr, blender::BM_CREATE_NOP, true);
+    ok = face != nullptr;
+  }
+  if (!ok) {
+    blender::BM_mesh_free(bm);
+    return -2;
+  }
+  blender::BM_face_normal_update(face);
+  slots[index].mesh = bm;
+  slots[index].top_face = nullptr;
+  return make_handle(index);
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
 
 int web_mesh_translate(int handle, float dx, float dy, float dz)
 {
@@ -586,6 +681,60 @@ int web_mesh_inset_face(int handle, int index, float thickness)
 }
 #endif
 
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Limited, original-Blender dissolve and edge merge on one planar polygon.
+ * Element indices refer to the CURRENT BMesh iteration snapshot only.
+ * No generalized manifold or multi-face collapse is offered yet.
+ * These operations invalidate all triangle/loop/vertex snapshots.
+ */
+int web_mesh_dissolve_boundary_vertex(int handle, int vertex_index)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  blender::BMesh *bm = slot->mesh;
+  if (vertex_index < 0 || vertex_index >= bm->totvert) return -2;
+  // Conservative guard: one simple face, no loose vertices/edges.
+  if (bm->totface != 1 || bm->totvert < 4 || bm->totvert != bm->totloop ||
+      bm->totedge != bm->totloop) return -4;
+  blender::BMIter iter;
+  blender::BMVert *v = nullptr;
+  int i = 0;
+  BM_ITER_MESH (v, &iter, bm, blender::BM_VERTS_OF_MESH) {
+    if (i++ != vertex_index) continue;
+    if (blender::BM_vert_edge_count_at_most(v, 3) != 2 ||
+        blender::BM_vert_face_count_at_most(v, 2) != 1) return -4;
+    slot->top_face = nullptr;
+    const bool ok = blender::BM_vert_dissolve(bm, v);
+    return ok && bm->totvert >= 3 && bm->totface == 1 ? 0 : -3;
+  }
+  return -2;
+}
+
+int web_mesh_collapse_boundary_edge(int handle, int edge_index)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  blender::BMesh *bm = slot->mesh;
+  if (edge_index < 0 || edge_index >= bm->totedge) return -2;
+  if (bm->totface != 1 || bm->totvert < 4 || bm->totvert != bm->totloop ||
+      bm->totedge != bm->totloop) return -4;
+  blender::BMIter iter;
+  blender::BMEdge *edge = nullptr;
+  int i = 0;
+  BM_ITER_MESH (edge, &iter, bm, blender::BM_EDGES_OF_MESH) {
+    if (i++ != edge_index) continue;
+    if (blender::BM_edge_face_count_at_most(edge, 2) != 1 ||
+        blender::BM_vert_edge_count_at_most(edge->v1, 3) != 2 ||
+        blender::BM_vert_edge_count_at_most(edge->v2, 3) != 2) return -4;
+    slot->top_face = nullptr;
+    blender::BMVert *remaining =
+        blender::BM_edge_collapse(bm, edge, edge->v1, true, true);
+    return remaining && bm->totvert >= 3 && bm->totface == 1 ? 0 : -3;
+  }
+  return -2;
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
+
 // Delete vertices, edges or faces using the original Blender BMesh kernels.
 // Element indices are snapshot-order only and invalid after topology edits.
 int web_mesh_delete_element(int handle, int kind, int index)
@@ -699,6 +848,16 @@ int web_mesh_extrude_top(int handle, float delta_z)
   if (!slot || !slot->top_face) {
     return -1;
   }
+  if (!std::isfinite(delta_z)) return -2;
+  // Check every affected coordinate before the BMO changes topology.
+  // Reject whole operations atomically instead of writing INF/NaN vertices.
+  blender::BMLoop *preflight = BM_FACE_FIRST_LOOP(slot->top_face);
+  blender::BMLoop *preflight_first = preflight;
+  do {
+    const double z = double(preflight->v->co[2]) + double(delta_z);
+    if (!std::isfinite(z) || std::abs(z) > 1.0e6) return -2;
+    preflight = preflight->next;
+  } while (preflight != preflight_first);
   blender::BMOperator op;
   blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "extrude_discrete_faces");
   blender::BMO_slot_buffer_from_single(
@@ -741,6 +900,13 @@ int web_mesh_extrude_face_z(int handle, int face_index, float distance)
   int i = 0;
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
     if (i++ != face_index) continue;
+    blender::BMLoop *preflight = BM_FACE_FIRST_LOOP(face);
+    blender::BMLoop *preflight_first = preflight;
+    do {
+      const double z = double(preflight->v->co[2]) + double(distance);
+      if (!std::isfinite(z) || std::abs(z) > 1.0e6) return -2;
+      preflight = preflight->next;
+    } while (preflight != preflight_first);
     blender::BMOperator op;
     blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "extrude_discrete_faces");
     blender::BMO_slot_buffer_from_single(
@@ -833,6 +999,40 @@ int web_mesh_validate_topology(int handle)
  * Return values: >=0 number of values written; -1 invalid handle;
  * -2 null/insufficient output buffer; -3 non-quad face or integer overflow.
  */
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Face-major Blender normals: the face cache is recomputed on demand because
+ * the thin vertex transform adapter intentionally bypasses depsgraph updates.
+ * This does not yet represent per-corner smooth/split normals.
+ */
+int web_mesh_face_normal_float_count(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (slot->mesh->totface > std::numeric_limits<int>::max() / 3) return -3;
+  return slot->mesh->totface * 3;
+}
+
+int web_mesh_copy_face_normals(int handle, float *out, int capacity)
+{
+  const int count = web_mesh_face_normal_float_count(handle);
+  if (count < 0) return count;
+  if (count == 0) return 0;
+  if (!out || capacity < count) return -2;
+  MeshSlot *slot = get_slot(handle);
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    blender::BM_face_normal_update(face);
+    for (int axis = 0; axis < 3; ++axis) {
+      if (!std::isfinite(face->no[axis])) return -3;
+      out[i++] = face->no[axis];
+    }
+  }
+  return i == count ? i : -3;
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
+
 int web_mesh_position_float_count(int handle)
 {
   MeshSlot *slot = get_slot(handle);
@@ -890,20 +1090,35 @@ int web_mesh_copy_positions(int handle, float *out, int float_capacity)
 int web_mesh_copy_triangles(int handle, std::uint32_t *out, int index_capacity)
 {
   const int n = web_mesh_triangle_index_count(handle);
-  if (n < 0) {
-    return n;
-  }
-  if (out == nullptr || index_capacity < n) {
-    return -2;
-  }
+  if (n < 0) return n;
+  if (n == 0) return 0;
+  if (out == nullptr || index_capacity < n) return -2;
   MeshSlot *slot = get_slot(handle);
   blender::BM_mesh_elem_index_ensure(slot->mesh, blender::BM_VERT);
   blender::BMIter iter;
   blender::BMFace *face = nullptr;
   int i = 0;
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
-    // Convex-face fan triangulation for transfer only. True Blender
-    // n-gon triangulation and UV-corner triangulation belong to Phase 2.2.4.
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+    /* The original Blender BMesh tessellator handles concave n-gons.
+     * Fixed quads retain the Phase 1.3 indexed winding contract.
+     * Face normals can be invalidated by direct vertex transformations.
+     */
+    blender::BM_face_normal_update(face);
+    blender::BMLoop *face_loops[128]{};
+    unsigned triangles[126][3]{};
+    blender::BM_face_calc_tessellation(face, true, face_loops, triangles);
+    for (int t = 0; t < face->len - 2; ++t) {
+      for (int k = 0; k < 3; ++k) {
+        const unsigned corner = triangles[t][k];
+        if (corner >= unsigned(face->len)) return -3;
+        out[i++] = std::uint32_t(blender::BM_elem_index_get(face_loops[corner]->v));
+      }
+    }
+#else
+    /* Phase 1.3 compatibility: preserve the earlier convex-only WASM fan.
+     * The general tessellator is compiled with the native Phase 2.2 closure.
+     */
     blender::BMLoop *first = BM_FACE_FIRST_LOOP(face);
     blender::BMLoop *loop = first->next;
     const std::uint32_t v0 = std::uint32_t(blender::BM_elem_index_get(first->v));
@@ -913,10 +1128,45 @@ int web_mesh_copy_triangles(int handle, std::uint32_t *out, int index_capacity)
       out[i++] = std::uint32_t(blender::BM_elem_index_get(loop->next->v));
       loop = loop->next;
     }
+#endif
   }
   return i == n ? i : -3;
 }
 
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Corner indices reference web_mesh_copy_uvs()'s face-major, winding-order
+ * loop stream. This is deliberately a different index space from BMVert:
+ * neighboring faces may share vertices but have independent UV seams.
+ * Return counts and capacity semantics match web_mesh_copy_triangles().
+ */
+int web_mesh_copy_triangle_corners(int handle, std::uint32_t *out, int index_capacity)
+{
+  const int n = web_mesh_triangle_index_count(handle);
+  if (n < 0) return n;
+  if (n == 0) return 0;
+  if (out == nullptr || index_capacity < n) return -2;
+  MeshSlot *slot = get_slot(handle);
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  std::uint32_t face_loop_offset = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    blender::BM_face_normal_update(face);
+    blender::BMLoop *face_loops[128]{};
+    unsigned triangles[126][3]{};
+    blender::BM_face_calc_tessellation(face, true, face_loops, triangles);
+    for (int t = 0; t < face->len - 2; ++t) {
+      for (int k = 0; k < 3; ++k) {
+        const unsigned corner = triangles[t][k];
+        if (corner >= unsigned(face->len)) return -3;
+        out[i++] = face_loop_offset + corner;
+      }
+    }
+    face_loop_offset += std::uint32_t(face->len);
+  }
+  return i == n ? i : -3;
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
 
 #if defined(BLENDER_WEB_NATIVE_UV)
 /* Phase 2.2.4 UV experiment. UVs belong to BMLoop (face corners), NOT
@@ -989,6 +1239,225 @@ int web_mesh_copy_uvs(int handle, float *out, int float_capacity)
   }
   return n == count ? n : -4;
 }
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Avoid reading unbounded strings from a C/WASM caller. Blender's CustomData
+ * layer storage has a fixed name limit; use a deliberately restricted ASCII
+ * subset for predictable naming across hosts. No caller pointer is retained.
+ */
+static bool web_valid_uv_name(const char *name)
+{
+  if (!name) return false;
+  for (int i = 0; i < 64; ++i) {
+    const unsigned char c = static_cast<unsigned char>(name[i]);
+    if (c == 0) return i > 0;
+    if (!(c >= 'a' && c <= 'z') &&
+        !(c >= 'A' && c <= 'Z') &&
+        !(c >= '0' && c <= '9') && c != '_' && c != '-') return false;
+  }
+  return false;
+}
+
+int web_mesh_named_uv_layer_count(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  return blender::CustomData_number_of_layers(&slot->mesh->ldata, blender::CD_PROP_FLOAT2);
+}
+
+/* Maximum eight layers per mesh to bound BMesh CustomData reallocations. */
+int web_mesh_uv_layer_ensure_named(int handle, const char *name)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  blender::BMesh *bm = slot->mesh;
+  if (blender::CustomData_get_offset_named(&bm->ldata, blender::CD_PROP_FLOAT2, name) >= 0)
+    return 0;
+  if (blender::CustomData_number_of_layers(&bm->ldata, blender::CD_PROP_FLOAT2) >= 8)
+    return -5;
+  blender::BM_data_layer_add_named(bm, &bm->ldata, blender::CD_PROP_FLOAT2, name);
+  return blender::CustomData_get_offset_named(&bm->ldata, blender::CD_PROP_FLOAT2, name) >= 0 ?
+             0 : -2;
+}
+
+int web_mesh_set_uv_named(int handle, const char *name, int face_index,
+                          int corner_index, float u, float v)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  if (!std::isfinite(u) || !std::isfinite(v)) return -4;
+  blender::BMesh *bm = slot->mesh;
+  if (face_index < 0 || face_index >= bm->totface || corner_index < 0) return -2;
+  const int offset =
+      blender::CustomData_get_offset_named(&bm->ldata, blender::CD_PROP_FLOAT2, name);
+  if (offset < 0) return -3;
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, bm, blender::BM_FACES_OF_MESH) {
+    if (i++ != face_index) continue;
+    if (corner_index >= face->len) return -2;
+    blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+    for (int corner = 0; corner < corner_index; ++corner) loop = loop->next;
+    float (*uv)[2] = BM_ELEM_CD_GET_FLOAT2_P(loop, offset);
+    (*uv)[0] = u;
+    (*uv)[1] = v;
+    return 0;
+  }
+  return -2;
+}
+
+int web_mesh_copy_uvs_named(int handle, const char *name, float *out, int capacity)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  blender::BMesh *bm = slot->mesh;
+  const int offset =
+      blender::CustomData_get_offset_named(&bm->ldata, blender::CD_PROP_FLOAT2, name);
+  if (offset < 0) return -3;
+  if (bm->totloop > std::numeric_limits<int>::max() / 2) return -3;
+  const int count = bm->totloop * 2;
+  if (count == 0) return 0;
+  if (!out || capacity < count) return -2;
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int n = 0;
+  BM_ITER_MESH (face, &iter, bm, blender::BM_FACES_OF_MESH) {
+    blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+    for (int corner = 0; corner < face->len; ++corner, loop = loop->next) {
+      const float (*uv)[2] = BM_ELEM_CD_GET_FLOAT2_P(loop, offset);
+      out[n++] = (*uv)[0];
+      out[n++] = (*uv)[1];
+    }
+  }
+  return n == count ? n : -3;
+}
+
+/* Original Blender per-domain named scalar CustomData. Domain keys mirror
+ * component selection (1=vertex, 2=edge, 3=face) with 4=face corner.
+ * Unlike a pseudo-attribute array, storage is owned by BMesh element headers
+ * and Blender operators decide its interpolation and propagation semantics.
+ */
+static blender::CustomData *web_mesh_attr_domain(blender::BMesh *bm, int domain)
+{
+  switch (domain) {
+    case 1: return &bm->vdata;
+    case 2: return &bm->edata;
+    case 3: return &bm->pdata;
+    case 4: return &bm->ldata;
+    default: return nullptr;
+  }
+}
+
+static int web_mesh_attr_elem_count(const blender::BMesh *bm, int domain)
+{
+  switch (domain) {
+    case 1: return bm->totvert;
+    case 2: return bm->totedge;
+    case 3: return bm->totface;
+    case 4: return bm->totloop;
+    default: return -4;
+  }
+}
+
+static blender::BMHeader *web_mesh_attr_head_at(blender::BMesh *bm, int domain, int index)
+{
+  if (index < 0 || index >= web_mesh_attr_elem_count(bm, domain)) return nullptr;
+  blender::BMIter iter;
+  int n = 0;
+  if (domain == 1) {
+    blender::BMVert *element = nullptr;
+    BM_ITER_MESH (element, &iter, bm, blender::BM_VERTS_OF_MESH) {
+      if (n++ == index) return &element->head;
+    }
+  }
+  else if (domain == 2) {
+    blender::BMEdge *element = nullptr;
+    BM_ITER_MESH (element, &iter, bm, blender::BM_EDGES_OF_MESH) {
+      if (n++ == index) return &element->head;
+    }
+  }
+  else if (domain == 3) {
+    blender::BMFace *element = nullptr;
+    BM_ITER_MESH (element, &iter, bm, blender::BM_FACES_OF_MESH) {
+      if (n++ == index) return &element->head;
+    }
+  }
+  else if (domain == 4) {
+    blender::BMFace *face = nullptr;
+    BM_ITER_MESH (face, &iter, bm, blender::BM_FACES_OF_MESH) {
+      blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+      for (int c = 0; c < face->len; ++c, loop = loop->next) {
+        if (n++ == index) return &loop->head;
+      }
+    }
+  }
+  return nullptr;
+}
+
+int web_mesh_attr_float_count(int handle, int domain)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  return web_mesh_attr_elem_count(slot->mesh, domain);
+}
+
+int web_mesh_attr_float_layer_ensure(int handle, int domain, const char *name)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  blender::CustomData *data = web_mesh_attr_domain(slot->mesh, domain);
+  if (!data) return -4;
+  if (blender::CustomData_get_offset_named(data, blender::CD_PROP_FLOAT, name) >= 0) return 0;
+  if (blender::CustomData_number_of_layers(data, blender::CD_PROP_FLOAT) >= 8) return -5;
+  blender::BM_data_layer_add_named(slot->mesh, data, blender::CD_PROP_FLOAT, name);
+  return blender::CustomData_get_offset_named(data, blender::CD_PROP_FLOAT, name) >= 0 ?
+             0 : -2;
+}
+
+int web_mesh_attr_float_set(int handle, int domain, const char *name,
+                            int element_index, float value)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name) || !std::isfinite(value)) return -4;
+  blender::CustomData *data = web_mesh_attr_domain(slot->mesh, domain);
+  if (!data) return -4;
+  const int offset = blender::CustomData_get_offset_named(data, blender::CD_PROP_FLOAT, name);
+  if (offset < 0) return -3;
+  blender::BMHeader *elem = web_mesh_attr_head_at(slot->mesh, domain, element_index);
+  if (!elem) return -2;
+  *reinterpret_cast<float *>(reinterpret_cast<char *>(elem->data) + offset) = value;
+  return 0;
+}
+
+int web_mesh_attr_float_copy(int handle, int domain, const char *name,
+                             float *out, int float_capacity)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  blender::CustomData *data = web_mesh_attr_domain(slot->mesh, domain);
+  if (!data) return -4;
+  const int offset = blender::CustomData_get_offset_named(data, blender::CD_PROP_FLOAT, name);
+  if (offset < 0) return -3;
+  const int count = web_mesh_attr_elem_count(slot->mesh, domain);
+  if (count < 0) return -4;
+  if (count == 0) return 0;
+  if (!out || float_capacity < count) return -2;
+  for (int i = 0; i < count; ++i) {
+    blender::BMHeader *elem = web_mesh_attr_head_at(slot->mesh, domain, i);
+    if (!elem) return -3;
+    out[i] = *reinterpret_cast<const float *>(reinterpret_cast<const char *>(elem->data) +
+                                              offset);
+  }
+  return count;
+}
+
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
 #endif  // BLENDER_WEB_NATIVE_UV
 
 int web_mesh_live_count()

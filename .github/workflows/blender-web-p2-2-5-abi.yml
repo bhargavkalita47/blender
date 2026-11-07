@@ -6,9 +6,11 @@ on:
   push:
     branches:
       - dev/p2-api-consolidation
+      - dev/p2-2-completion
   pull_request:
     branches:
       - dev/p2-uv-attributes
+      - dev/p2-api-consolidation
   workflow_dispatch:
 
 permissions:
@@ -43,6 +45,14 @@ jobs:
           ctest --test-dir build/blender_web/native_core --output-on-failure
           python3 tools/blender_web/native_core/verify_build_isolation.py \
             build/blender_web/native_core
+      - name: Validate concave n-gon tessellation and triangle-corner UV mapping
+        run: |
+          set -o pipefail
+          python3 -m py_compile tools/blender_web/tests/verify_ngon_triangle_uv.py
+          mkdir -p build/blender_web
+          python3 tools/blender_web/tests/verify_ngon_triangle_uv.py \
+            build/blender_web/native_core/libblender_web_native_core.so \
+            | tee build/blender_web/triangle-corners-native.log
       - name: Run inherited BMesh and experimental UV regressions
         run: |
           set -o pipefail
