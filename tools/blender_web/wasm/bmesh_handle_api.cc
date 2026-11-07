@@ -235,6 +235,8 @@ std::uint32_t web_mesh_api_capabilities()
 #  if defined(BLENDER_WEB_NATIVE_UV)
   caps |= (1u << 4);
 #  endif
+  // Original Blender polygon tessellation and corresponding per-corner mapping.
+  caps |= (1u << 5) | (1u << 6);
   return caps;
 }
 
@@ -332,6 +334,96 @@ int web_mesh_create_uv_sphere(int segments, int rings)
 {
   return create_extended_primitive(3, segments, rings);
 }
+
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Create a bounded, simple planar XY polygon from client coordinates.
+ * Reject repeated vertices, self-intersections, degenerate area, and
+ * non-finite or extreme inputs before allocating any Blender BMesh state.
+ * The original BMesh constructors own the actual geometry.
+ */
+int web_mesh_create_polygon_xy(const float *xy, int vertex_count)
+{
+  if (xy == nullptr || vertex_count < 3 || vertex_count > 128) {
+    return -4;
+  }
+  constexpr double eps = 1e-10;
+  for (int i = 0; i < vertex_count; ++i) {
+    const float x = xy[2 * i], y = xy[2 * i + 1];
+    if (!std::isfinite(x) || !std::isfinite(y) ||
+        std::fabs(x) > 1e6f || std::fabs(y) > 1e6f) {
+      return -4;
+    }
+    for (int j = 0; j < i; ++j) {
+      const double dx = double(x) - xy[2 * j];
+      const double dy = double(y) - xy[2 * j + 1];
+      if (dx * dx + dy * dy < eps * eps) return -4;
+    }
+  }
+  const auto orient = [&](int a, int b, int c) {
+    return (double(xy[2 * b]) - xy[2 * a]) *
+               (double(xy[2 * c + 1]) - xy[2 * a + 1]) -
+           (double(xy[2 * b + 1]) - xy[2 * a + 1]) *
+               (double(xy[2 * c]) - xy[2 * a]);
+  };
+  const auto on_segment = [&](int a, int b, int p) {
+    return double(xy[2 * p]) >= std::min(double(xy[2 * a]), double(xy[2 * b])) - eps &&
+           double(xy[2 * p]) <= std::max(double(xy[2 * a]), double(xy[2 * b])) + eps &&
+           double(xy[2 * p + 1]) >= std::min(double(xy[2 * a + 1]), double(xy[2 * b + 1])) - eps &&
+           double(xy[2 * p + 1]) <= std::max(double(xy[2 * a + 1]), double(xy[2 * b + 1])) + eps;
+  };
+  double twice_area = 0.0;
+  for (int i = 0; i < vertex_count; ++i) {
+    const int next = (i + 1) % vertex_count;
+    twice_area += double(xy[2 * i]) * xy[2 * next + 1] -
+                  double(xy[2 * next]) * xy[2 * i + 1];
+    // Non-neighboring edges must not intersect or overlap.
+    for (int j = i + 1; j < vertex_count; ++j) {
+      const int j_next = (j + 1) % vertex_count;
+      if (i == j || next == j || j_next == i) continue;
+      const double a = orient(i, next, j), b = orient(i, next, j_next);
+      const double c = orient(j, j_next, i), d = orient(j, j_next, next);
+      if (((a > eps && b < -eps) || (a < -eps && b > eps)) &&
+          ((c > eps && d < -eps) || (c < -eps && d > eps))) return -4;
+      if ((std::fabs(a) <= eps && on_segment(i, next, j)) ||
+          (std::fabs(b) <= eps && on_segment(i, next, j_next)) ||
+          (std::fabs(c) <= eps && on_segment(j, j_next, i)) ||
+          (std::fabs(d) <= eps && on_segment(j, j_next, next))) return -4;
+    }
+  }
+  if (std::fabs(twice_area) <= eps) return -4;
+
+  unsigned index = kCapacity;
+  for (unsigned i = 0; i < kCapacity; ++i) {
+    if (!slots[i].mesh) { index = i; break; }
+  }
+  if (index == kCapacity) return -3;
+
+  const blender::BMeshCreateParams params{true};
+  blender::BMesh *bm = blender::BM_mesh_create(&blender::bm_mesh_allocsize_default, &params);
+  if (!bm) return -2;
+  blender::BMVert *vertices[128]{};
+  bool ok = true;
+  for (int i = 0; i < vertex_count; ++i) {
+    const float co[3] = {xy[2 * i], xy[2 * i + 1], 0.0f};
+    vertices[i] = blender::BM_vert_create(bm, co, nullptr, blender::BM_CREATE_NOP);
+    if (!vertices[i]) { ok = false; break; }
+  }
+  blender::BMFace *face = nullptr;
+  if (ok) {
+    face = blender::BM_face_create_verts(
+        bm, vertices, vertex_count, nullptr, blender::BM_CREATE_NOP, true);
+    ok = face != nullptr;
+  }
+  if (!ok) {
+    blender::BM_mesh_free(bm);
+    return -2;
+  }
+  blender::BM_face_normal_update(face);
+  slots[index].mesh = bm;
+  slots[index].top_face = nullptr;
+  return make_handle(index);
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
 
 int web_mesh_translate(int handle, float dx, float dy, float dz)
 {
@@ -890,20 +982,35 @@ int web_mesh_copy_positions(int handle, float *out, int float_capacity)
 int web_mesh_copy_triangles(int handle, std::uint32_t *out, int index_capacity)
 {
   const int n = web_mesh_triangle_index_count(handle);
-  if (n < 0) {
-    return n;
-  }
-  if (out == nullptr || index_capacity < n) {
-    return -2;
-  }
+  if (n < 0) return n;
+  if (n == 0) return 0;
+  if (out == nullptr || index_capacity < n) return -2;
   MeshSlot *slot = get_slot(handle);
   blender::BM_mesh_elem_index_ensure(slot->mesh, blender::BM_VERT);
   blender::BMIter iter;
   blender::BMFace *face = nullptr;
   int i = 0;
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
-    // Convex-face fan triangulation for transfer only. True Blender
-    // n-gon triangulation and UV-corner triangulation belong to Phase 2.2.4.
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+    /* The original Blender BMesh tessellator handles concave n-gons.
+     * Fixed quads retain the Phase 1.3 indexed winding contract.
+     * Face normals can be invalidated by direct vertex transformations.
+     */
+    blender::BM_face_normal_update(face);
+    blender::BMLoop *face_loops[128]{};
+    unsigned triangles[126][3]{};
+    blender::BM_face_calc_tessellation(face, true, face_loops, triangles);
+    for (int t = 0; t < face->len - 2; ++t) {
+      for (int k = 0; k < 3; ++k) {
+        const unsigned corner = triangles[t][k];
+        if (corner >= unsigned(face->len)) return -3;
+        out[i++] = std::uint32_t(blender::BM_elem_index_get(face_loops[corner]->v));
+      }
+    }
+#else
+    /* Phase 1.3 compatibility: preserve the earlier convex-only WASM fan.
+     * The general tessellator is compiled with the native Phase 2.2 closure.
+     */
     blender::BMLoop *first = BM_FACE_FIRST_LOOP(face);
     blender::BMLoop *loop = first->next;
     const std::uint32_t v0 = std::uint32_t(blender::BM_elem_index_get(first->v));
@@ -913,10 +1020,45 @@ int web_mesh_copy_triangles(int handle, std::uint32_t *out, int index_capacity)
       out[i++] = std::uint32_t(blender::BM_elem_index_get(loop->next->v));
       loop = loop->next;
     }
+#endif
   }
   return i == n ? i : -3;
 }
 
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Corner indices reference web_mesh_copy_uvs()'s face-major, winding-order
+ * loop stream. This is deliberately a different index space from BMVert:
+ * neighboring faces may share vertices but have independent UV seams.
+ * Return counts and capacity semantics match web_mesh_copy_triangles().
+ */
+int web_mesh_copy_triangle_corners(int handle, std::uint32_t *out, int index_capacity)
+{
+  const int n = web_mesh_triangle_index_count(handle);
+  if (n < 0) return n;
+  if (n == 0) return 0;
+  if (out == nullptr || index_capacity < n) return -2;
+  MeshSlot *slot = get_slot(handle);
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  std::uint32_t face_loop_offset = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    blender::BM_face_normal_update(face);
+    blender::BMLoop *face_loops[128]{};
+    unsigned triangles[126][3]{};
+    blender::BM_face_calc_tessellation(face, true, face_loops, triangles);
+    for (int t = 0; t < face->len - 2; ++t) {
+      for (int k = 0; k < 3; ++k) {
+        const unsigned corner = triangles[t][k];
+        if (corner >= unsigned(face->len)) return -3;
+        out[i++] = face_loop_offset + corner;
+      }
+    }
+    face_loop_offset += std::uint32_t(face->len);
+  }
+  return i == n ? i : -3;
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
 
 #if defined(BLENDER_WEB_NATIVE_UV)
 /* Phase 2.2.4 UV experiment. UVs belong to BMLoop (face corners), NOT
