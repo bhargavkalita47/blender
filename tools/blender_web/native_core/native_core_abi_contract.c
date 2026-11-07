@@ -25,6 +25,7 @@ int main(void)
   assert(caps & BLENDER_WEB_CAP_NAMED_UV);
   assert(caps & BLENDER_WEB_CAP_FACE_NORMALS);
   assert(caps & BLENDER_WEB_CAP_BOUNDARY_COLLAPSE);
+  assert(caps & BLENDER_WEB_CAP_NAMED_FLOAT_ATTRIBUTES);
   assert(web_mesh_live_count() == 0);
 
   const int plane = web_mesh_create_plane();
@@ -67,6 +68,27 @@ int main(void)
   assert(web_mesh_copy_uvs(plane, uv, 8) == 8);
   assert(uv[0] == .25f && uv[1] == .75f);
   assert(web_mesh_uv_layer_ensure_named(plane, "bad name") == -4);
+  const int domain_sizes[4] = {4, 4, 1, 4};
+  for (int domain = 1; domain <= 4; ++domain) {
+    const int count = domain_sizes[domain - 1];
+    assert(web_mesh_attr_float_count(plane, domain) == count);
+    assert(web_mesh_attr_float_layer_ensure(plane, domain, "weight") == 0);
+    assert(web_mesh_attr_float_layer_ensure(plane, domain, "weight") == 0);
+    assert(web_mesh_attr_float_set(plane, domain, "weight", count - 1,
+                                   domain * .125f) == 0);
+    float values[4] = {0.f};
+    assert(web_mesh_attr_float_copy(plane, domain, "weight", values, count) == count);
+    assert(values[count - 1] == domain * .125f);
+    assert(web_mesh_attr_float_copy(plane, domain, "weight", values, count - 1) == -2);
+    assert(web_mesh_attr_float_set(plane, domain, "weight", count, 2.f) == -2);
+    assert(web_mesh_attr_float_set(plane, domain, "missing", 0, 1.f) == -3);
+    assert(web_mesh_attr_float_set(plane, domain, "weight", 0, NAN) == -4);
+  }
+  assert(web_mesh_attr_float_count(plane, 0) == -4);
+  assert(web_mesh_attr_float_count(plane, 5) == -4);
+  assert(web_mesh_attr_float_layer_ensure(plane, 0, "weight") == -4);
+  assert(web_mesh_attr_float_layer_ensure(plane, 1, "bad name") == -4);
+
   assert(web_mesh_set_uv_named(plane, "missing", 0, 0, 0.f, 0.f) == -3);
 
 
