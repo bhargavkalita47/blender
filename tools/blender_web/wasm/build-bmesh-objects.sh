@@ -47,6 +47,13 @@ for dir in "${INC[@]}"; do
   fi
 done
 
+echo "::group::Verify Blender ResourceScope layout on wasm32"
+em++ "${FLAGS[@]}" -fsyntax-only \
+  "$ROOT/tools/blender_web/wasm/check-resource-scope-size.cc" \
+  > "$OUT/resource-scope-wasm32.log" 2>&1 || { cat "$OUT/resource-scope-wasm32.log"; exit 1; }
+echo "PASS: WASM32 ResourceScope layout"
+echo "::endgroup::"
+
 SOURCES=(
   source/blender/bmesh/intern/bmesh_structure.cc
   source/blender/bmesh/intern/bmesh_core.cc
