@@ -1,6 +1,6 @@
 # Blender for Web — Project Engineering Index
 
-> Status: Phase 1.1 architecture mapping documented; Phase 1.2 dependency analysis next.
+> Status: Phase 1.1 architecture mapping merged. Phase 1.2 static research deliverables prepared on `dev/p1-dependencies`; source/link configuration validation remains in Phase 1.3.
 >
 > Source baseline: Blender **5.4 Alpha** (`BLENDER_VERSION 504`, cycle `alpha`), commit `67e5a5f874cf37e2a114cebd24f219d8c44a16ad`.
 >
@@ -32,7 +32,10 @@
 ## Phase 1 records
 
 - [1.1 — Architecture and feature mapping](phase-1/1.1-architecture.md)
-- 1.2 — Dependency analysis: see `phase-1/1.2-dependencies.md` when that work begins.
+- [1.2 — Dependency audit ledger](phase-1/1.2-dependencies.md)
+- [1.2 — CMake target graph and SCCs](phase-1/1.2-target-graph.md)
+- [1.2 — Cuboid/BMesh source paths](phase-1/1.2-source-closure.md)
+- [1.2 — Native closure verification handoff](phase-1/1.2-validation-handoff.md)
 
 ## Evidence and limitations
 
