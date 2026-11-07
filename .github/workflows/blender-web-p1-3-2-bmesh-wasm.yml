@@ -73,5 +73,15 @@ jobs:
             build/blender_web/bmesh_wasm/bmesh_alloc.mjs
             build/blender_web/bmesh_wasm/bmesh_disk.mjs
             build/blender_web/bmesh_wasm/bmesh_disk.wasm
+            build/blender_web/bmesh_wasm/bmesh_cube.wasm
+            build/blender_web/bmesh_wasm/bmesh_cube.mjs
+            build/blender_web/bmesh_wasm/bmesh_lifecycle_full.wasm
+            build/blender_web/bmesh_wasm/bmesh_lifecycle_full.mjs
+            build/blender_web/bmesh_wasm/bmesh_extrude.wasm
+            build/blender_web/bmesh_wasm/bmesh_extrude.mjs
+            build/blender_web/bmesh_wasm/cube-probe-status.json
+            build/blender_web/bmesh_wasm/extrude-probe-status.json
+            build/blender_web/bmesh_wasm/bmesh-lifecycle-run.log
+            build/blender_web/bmesh_wasm/bmesh-extrude-run.log
           if-no-files-found: warn
           retention-days: 30
