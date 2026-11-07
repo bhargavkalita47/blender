@@ -183,7 +183,7 @@ def header_index(root):
 
 def include_resolution(current: Path, requested: str, index):
     # A relative include is preferred; then an indexed unique include.
-    direct = current.parent / requested
+    direct = (current.parent / requested).resolve()
     if direct.is_file():
         return direct, []
     candidates = index.get(Path(requested).name, [])
@@ -227,13 +227,13 @@ def collect_source_closure(root, index, seed):
                 else:
                     unresolved.append(record)
             else:
-                target = resolved.relative_to(root).as_posix()
+                target = resolved.resolve().relative_to(root).as_posix()
                 include_edges.append((source, target))
                 if resolved not in visited:
                     pending.append(resolved)
     return {
         "seed": seed,
-        "files": sorted(p.relative_to(root).as_posix() for p in visited),
+        "files": sorted(p.resolve().relative_to(root).as_posix() for p in visited),
         "include_edges": sorted(set(include_edges)),
         "external_includes": sorted(external),
         "ambiguous": ambiguous,

@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 1.2 dependency verification
+
+on:
+  push:
+    branches:
+      - dev/p1-dependency-verification
+      - blender-for-web
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out Blender source and analysis tooling
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            CMakeLists.txt
+            source
+            intern
+            extern
+            build_files
+            tools/blender_web/dependencies
+          sparse-checkout-cone-mode: false
+
+      - name: Validate analyzer Python syntax
+        run: |
+          python3 -m py_compile tools/blender_web/dependencies/audit_static.py
+          python3 -m py_compile tools/blender_web/dependencies/verify_symbol_candidates.py
+
+      - name: Run static dependency closure analysis
+        run: |
+          python3 tools/blender_web/dependencies/audit_static.py \
+            --root . \
+            --out build/blender_web/dependency-audit.json
+
+      - name: Verify source-level symbol-provider candidates
+        run: |
+          python3 tools/blender_web/dependencies/verify_symbol_candidates.py \
+            --root . \
+            --out build/blender_web/symbol-candidates.json
+
+      - name: Summarize ambiguous source includes and target SCCs
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('build/blender_web/dependency-audit.json').read_text())
+          print('INTERNAL_TARGETS', len(data['declared_internal_targets']))
+          print('LINK_RECORDS', len(data['link_edges']))
+          print('LARGEST_SCC', len(data['sccs'][0]) if data['sccs'] else 0)
+          for seed in data['seed_closures']:
+              print('SEED', seed.get('seed'))
+              print('FILES', len(seed.get('files', [])))
+              print('AMBIGUOUS_INCLUDES', len(seed.get('ambiguous', [])))
+              print('UNRESOLVED_INCLUDES', len(seed.get('unresolved', [])))
+              print('EXTERNAL_INCLUDES', len(seed.get('external_includes', [])))
+              print('SAMPLE_AMBIGUOUS', json.dumps(seed.get('ambiguous', [])[:5]))
+              print('SAMPLE_UNRESOLVED', json.dumps(seed.get('unresolved', [])[:5]))
+          PY
+
+      - name: Upload static audit JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-phase-1-2-static-audit
+          path: |
+            build/blender_web/dependency-audit.json
+            build/blender_web/symbol-candidates.json
+          retention-days: 30

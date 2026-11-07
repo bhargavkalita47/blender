@@ -1,0 +1,102 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 1.2 native configuration probe
+
+on:
+  push:
+    branches:
+      - dev/p1-dependency-verification
+
+permissions:
+  contents: read
+
+jobs:
+  native-configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out Blender CMake and source files
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            CMakeLists.txt
+            source
+            intern
+            extern
+            build_files
+            scripts
+            release
+            tools
+            lib
+            .gitmodules
+          sparse-checkout-cone-mode: false
+
+      - name: Install baseline native development libraries
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libjpeg-dev libpng-dev zlib1g-dev libfreetype-dev \
+            libopenimageio-dev openimageio-tools libopencolorio-dev libopenexr-dev \
+            libtbb-dev libeigen3-dev libfmt-dev libxxhash-dev libzstd-dev \
+            libepoxy-dev libglew-dev libgmp-dev libboost-dev \
+            libssl-dev libtiff-dev libwebp-dev
+
+      - name: Avoid treating a Git LFS pointer as a native startup blend
+        shell: bash
+        run: |
+          file=release/datafiles/startup.blend
+          if [ -f "$file" ] && [ "$(stat -c%s "$file")" -lt 1024 ]; then
+            echo "The checkout lacks the startup.blend LFS object; moving the pointer aside inside CI only."
+            mv "$file" "${file}.lfs-pointer"
+          fi
+
+      - name: Try a CPU-only native lite configuration
+        shell: bash
+        run: |
+          mkdir -p build/web-native-probe
+          if command -v clang-18 >/dev/null 2>&1; then
+            CC=clang-18; CXX=clang++-18
+          elif command -v clang-17 >/dev/null 2>&1; then
+            CC=clang-17; CXX=clang++-17
+          else
+            CC=clang; CXX=clang++
+          fi
+          echo "compiler=$CC" > build/web-native-probe/probe-status.txt
+          "$CC" --version | head -2 >> build/web-native-probe/probe-status.txt
+          set +e
+          cmake -S . -B build/web-native-probe -G Ninja \
+            -C build_files/cmake/config/blender_lite.cmake \
+            -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DWITH_HEADLESS=ON \
+            -DWITH_PYTHON=OFF \
+            -DWITH_OPENGL_BACKEND=OFF \
+            -DWITH_VULKAN_BACKEND=OFF \
+            -DWITH_GHOST_X11=OFF \
+            -DWITH_GHOST_WAYLAND=OFF \
+            > build/web-native-probe/configure.log 2>&1
+          status=$?
+          set -e
+          echo "configure_exit_status=$status" >> build/web-native-probe/probe-status.txt
+          tail -100 build/web-native-probe/configure.log
+          if [ "$status" -eq 0 ]; then
+            cmake --graphviz=build/web-native-probe/targets.dot build/web-native-probe
+            echo "configured=yes" >> build/web-native-probe/probe-status.txt
+          else
+            echo "configured=no" >> build/web-native-probe/probe-status.txt
+            echo "::warning::Configuration probe could not complete; see uploaded logs for missing dependencies."
+          fi
+
+      - name: Upload configuration probe evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-p1-2-native-configure-probe
+          path: |
+            build/web-native-probe/probe-status.txt
+            build/web-native-probe/configure.log
+            build/web-native-probe/targets.dot
+            build/web-native-probe/compile_commands.json
+          if-no-files-found: warn
+          retention-days: 30
