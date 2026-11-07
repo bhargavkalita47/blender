@@ -24,6 +24,7 @@ int main(void)
   assert(caps & BLENDER_WEB_CAP_PLANAR_NGON);
   assert(caps & BLENDER_WEB_CAP_NAMED_UV);
   assert(caps & BLENDER_WEB_CAP_FACE_NORMALS);
+  assert(caps & BLENDER_WEB_CAP_BOUNDARY_COLLAPSE);
   assert(web_mesh_live_count() == 0);
 
   const int plane = web_mesh_create_plane();
@@ -125,6 +126,21 @@ int main(void)
   assert(web_mesh_create_polygon_xy(invalid, 3) == -4);
   assert(web_mesh_create_polygon_xy(NULL, 5) == -4);
   assert(web_mesh_create_polygon_xy(concave_xy, 129) == -4);
+  assert(web_mesh_dissolve_boundary_vertex(cube, 0) == -4);
+  assert(web_mesh_dissolve_boundary_vertex(ngon, -1) == -2);
+  assert(web_mesh_dissolve_boundary_vertex(ngon, 3) == 0);
+  assert(web_mesh_validate_topology(ngon) == 0);
+  assert(web_mesh_position_float_count(ngon) == 12);
+  assert(web_mesh_triangle_index_count(ngon) == 6);
+  assert(web_mesh_collapse_boundary_edge(cube, 0) == -4);
+  int collapsing = web_mesh_create_plane();
+  assert(collapsing > 0);
+  assert(web_mesh_collapse_boundary_edge(collapsing, -1) == -2);
+  assert(web_mesh_collapse_boundary_edge(collapsing, 0) == 0);
+  assert(web_mesh_validate_topology(collapsing) == 0);
+  assert(web_mesh_position_float_count(collapsing) == 9);
+  assert(web_mesh_triangle_index_count(collapsing) == 3);
+  assert(web_mesh_destroy(collapsing) == 0);
   assert(web_mesh_live_count() == 3);
   assert(web_mesh_destroy(ngon) == 0);
   assert(web_mesh_destroy(cube) == 0);
