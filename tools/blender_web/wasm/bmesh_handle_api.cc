@@ -236,7 +236,7 @@ std::uint32_t web_mesh_api_capabilities()
   caps |= (1u << 4);
 #  endif
   // Original Blender polygon tessellation and corresponding per-corner mapping.
-  caps |= (1u << 5) | (1u << 6) | (1u << 8);
+  caps |= (1u << 5) | (1u << 6) | (1u << 8) | (1u << 9);
 #  if defined(BLENDER_WEB_NATIVE_UV)
   caps |= (1u << 7);
 #  endif
@@ -680,6 +680,60 @@ int web_mesh_inset_face(int handle, int index, float thickness)
   return -3;
 }
 #endif
+
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Limited, original-Blender dissolve and edge merge on one planar polygon.
+ * Element indices refer to the CURRENT BMesh iteration snapshot only.
+ * No generalized manifold or multi-face collapse is offered yet.
+ * These operations invalidate all triangle/loop/vertex snapshots.
+ */
+int web_mesh_dissolve_boundary_vertex(int handle, int vertex_index)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  blender::BMesh *bm = slot->mesh;
+  if (vertex_index < 0 || vertex_index >= bm->totvert) return -2;
+  // Conservative guard: one simple face, no loose vertices/edges.
+  if (bm->totface != 1 || bm->totvert < 4 || bm->totvert != bm->totloop ||
+      bm->totedge != bm->totloop) return -4;
+  blender::BMIter iter;
+  blender::BMVert *v = nullptr;
+  int i = 0;
+  BM_ITER_MESH (v, &iter, bm, blender::BM_VERTS_OF_MESH) {
+    if (i++ != vertex_index) continue;
+    if (blender::BM_vert_edge_count_at_most(v, 3) != 2 ||
+        blender::BM_vert_face_count_at_most(v, 2) != 1) return -4;
+    slot->top_face = nullptr;
+    const bool ok = blender::BM_vert_dissolve(bm, v);
+    return ok && bm->totvert >= 3 && bm->totface == 1 ? 0 : -3;
+  }
+  return -2;
+}
+
+int web_mesh_collapse_boundary_edge(int handle, int edge_index)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  blender::BMesh *bm = slot->mesh;
+  if (edge_index < 0 || edge_index >= bm->totedge) return -2;
+  if (bm->totface != 1 || bm->totvert < 4 || bm->totvert != bm->totloop ||
+      bm->totedge != bm->totloop) return -4;
+  blender::BMIter iter;
+  blender::BMEdge *edge = nullptr;
+  int i = 0;
+  BM_ITER_MESH (edge, &iter, bm, blender::BM_EDGES_OF_MESH) {
+    if (i++ != edge_index) continue;
+    if (blender::BM_edge_face_count_at_most(edge, 2) != 1 ||
+        blender::BM_vert_edge_count_at_most(edge->v1, 3) != 2 ||
+        blender::BM_vert_edge_count_at_most(edge->v2, 3) != 2) return -4;
+    slot->top_face = nullptr;
+    blender::BMVert *remaining =
+        blender::BM_edge_collapse(bm, edge, edge->v1, true, true);
+    return remaining && bm->totvert >= 3 && bm->totface == 1 ? 0 : -3;
+  }
+  return -2;
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
 
 // Delete vertices, edges or faces using the original Blender BMesh kernels.
 // Element indices are snapshot-order only and invalid after topology edits.
