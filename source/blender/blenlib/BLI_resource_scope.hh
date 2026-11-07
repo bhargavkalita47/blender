@@ -141,7 +141,8 @@ class ResourceScope : NonMovable {
  * from #NonCopyable. That happens because then there would be two #NonCopyable types at the same
  * address which is not allowed. The proper solution is probably to change how NonCopyable and
  * NonMovable are used overall. */
-static_assert(sizeof(ResourceScope) == 16);
+/* The representation is two pointer-sized members on both 64-bit native and wasm32. */
+static_assert(sizeof(ResourceScope) == sizeof(void *) * 2);
 
 /* -------------------------------------------------------------------- */
 /** \name #ResourceScope Inline Methods
