@@ -57,5 +57,5 @@ console.log(JSON.stringify({
   source: "source/blender/blenlib/intern/math_base.cc",
   wasmBytes: magic.length,
   node: process.version,
-  assertions: 13,
+  assertions: 19,
 }));
