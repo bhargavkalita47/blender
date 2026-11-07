@@ -72,3 +72,23 @@ cat "$OUT/status.json"
 if ((failed != 0)); then
   exit 1
 fi
+
+# Link selected Blender BMesh disk-cycle functions into a real WASM module.
+# Compile original Blender source with function sections so unrelated
+# desktop/BKE symbol references from *unused* functions can be removed.
+echo "::group::Linking and running Blender BMesh disk kernel as WebAssembly"
+em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+  "$ROOT/source/blender/bmesh/intern/bmesh_structure.cc" \
+  "$ROOT/tools/blender_web/wasm/bmesh_disk_bridge.cc" \
+  -Wl,--gc-sections \
+  -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,node \
+  -sALLOW_MEMORY_GROWTH=1 -sERROR_ON_UNDEFINED_SYMBOLS=1 \
+  -sEXPORTED_FUNCTIONS='["_web_bmesh_square_vertex_degree","_web_bmesh_square_validate","_web_bmesh_after_edge_remove","_web_bmesh_after_vertex_relink"]' \
+  -o "$OUT/bmesh_disk.mjs" > "$OUT/bmesh-disk-link.log" 2>&1 || {
+    cat "$OUT/bmesh-disk-link.log"
+    exit 1
+  }
+test -s "$OUT/bmesh_disk.wasm"
+test -s "$OUT/bmesh_disk.mjs"
+node "$ROOT/tools/blender_web/wasm/verify-bmesh-disk.mjs" "$OUT"
+echo "::endgroup::"
