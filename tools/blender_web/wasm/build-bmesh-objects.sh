@@ -312,3 +312,30 @@ else
   grep -E 'error:|fatal error:' "$OUT/bmesh-extrude-link.log" | grep -v 'undefined symbol:' | head -25 || true
 fi
 echo "::endgroup::"
+
+
+echo "::group::Diagnostic: Blender BMesh opaque-handle edit/destroy API"
+if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+    "$OUT/bmesh_mesh_lifecycle.o" \
+    "$OUT/bmesh_structure.cc.o" "$OUT/bmesh_core.cc.o" \
+    "$OUT/bmesh_construct.cc.o" "$OUT/bmesh_query.cc.o" \
+    "${SUPPORT_OBJECTS[@]}" \
+    "$ROOT/tools/blender_web/wasm/bmesh_handle_api.cc" \
+    -Wl,--gc-sections -Wl,--error-limit=0 \
+    -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,node \
+    -sALLOW_MEMORY_GROWTH=1 -sERROR_ON_UNDEFINED_SYMBOLS=1 \
+    -sEXPORTED_FUNCTIONS='["_web_mesh_create_cube","_web_mesh_destroy","_web_mesh_verts","_web_mesh_edges","_web_mesh_faces","_web_mesh_loops","_web_mesh_top_z","_web_mesh_extrude_top","_web_mesh_live_count","_web_mesh_memory_bytes"]' \
+    -o "$OUT/bmesh_handles.mjs" > "$OUT/bmesh-handles-link.log" 2>&1; then
+  if node "$ROOT/tools/blender_web/wasm/verify-bmesh-handles.mjs" "$OUT" > "$OUT/bmesh-handles-run.log" 2>&1; then
+    echo '{"link_success":true,"runtime_success":true,"stress_cycles":1000}' > "$OUT/handle-api-status.json"
+    cat "$OUT/bmesh-handles-run.log"
+  else
+    echo '{"link_success":true,"runtime_success":false}' > "$OUT/handle-api-status.json"
+    cat "$OUT/bmesh-handles-run.log"
+  fi
+else
+  echo '{"link_success":false,"runtime_success":false}' > "$OUT/handle-api-status.json"
+  grep 'undefined symbol:' "$OUT/bmesh-handles-link.log" | sed 's/^.*undefined symbol: //' | sort -u | head -100 || true
+  grep -E 'error:|fatal error:' "$OUT/bmesh-handles-link.log" | grep -v 'undefined symbol:' | head -25 || true
+fi
+echo "::endgroup::"
