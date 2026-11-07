@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 1.3.3 real browsers and mesh transfer
+on:
+  push:
+    branches:
+      - dev/p1-browser-mesh
+  pull_request:
+    branches:
+      - blender-for-web
+      - dev/p1-bmesh-wasm
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out genuine Blender source
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            source/blender
+            intern
+            extern
+            tools/blender_web/wasm
+          sparse-checkout-cone-mode: false
+
+      - name: Install compatible fmt headers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libfmt-dev
+
+      - name: Install pinned Emscripten 4.0.12
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install 4.0.12
+          "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.12
+
+      - name: Build original Blender BMesh for browser and Node
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          bash tools/blender_web/wasm/build-bmesh-objects.sh
+
+      - name: Validate typed array transfer and memory lifetime in Node
+        run: |
+          node tools/blender_web/wasm/verify-bmesh-mesh-buffers.mjs build/blender_web/bmesh_wasm
+
+      - name: Install pinned Chromium and Firefox browser test runner
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx --no-install playwright install --with-deps chromium firefox
+
+      - name: Run original Blender BMesh WASM in two real browser engines
+        run: |
+          node tools/blender_web/wasm/verify-bmesh-browser.mjs build/blender_web/bmesh_wasm
+
+      - name: Upload browser verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-p1-3-3-browser-evidence
+          path: |
+            build/blender_web/bmesh_wasm/status.json
+            build/blender_web/bmesh_wasm/lifecycle-expanded-status.json
+            build/blender_web/bmesh_wasm/cube-probe-status.json
+            build/blender_web/bmesh_wasm/extrude-probe-status.json
+            build/blender_web/bmesh_wasm/handle-api-status.json
+            build/blender_web/bmesh_wasm/bmesh_handles.wasm
+            build/blender_web/bmesh_wasm/bmesh_handles.mjs
+            build/blender_web/bmesh_wasm/bmesh-handles-run.log
+          if-no-files-found: warn
+          retention-days: 30
