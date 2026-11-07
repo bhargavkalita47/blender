@@ -69,6 +69,15 @@ def main():
     assert extracted["edge_face_selection"] is True
     assert extracted["vertex_edge_face_deletion"] is True
     passed["extruded_plane"]={key:extrude_original[key] for key in COUNTS}
+    subdivide_original=original["shapes"]["subdivided_plane"]
+    subdivide_extracted=extracted["subdivided_plane"]
+    for key in COUNTS:
+        assert subdivide_original[key] == subdivide_extracted[key], (
+            "Blender BMO subdivide mismatch: "+key)
+    compare_positions("subdivided_plane",subdivide_original["positions"],
+                      subdivide_extracted["positions"])
+    assert extracted["original_blender_bmo_subdivide"] is True
+    passed["subdivided_plane"]={key:subdivide_original[key] for key in COUNTS}
     assert extracted["vertex_selection_transforms"]
     assert extracted["face_deletion"]
     assert extracted["multi_mesh_independence"]
@@ -82,10 +91,11 @@ def main():
             "selection_transform_and_delete_smoke":True,
             "original_blender_poke_parity":True,
             "original_blender_inset_parity":True,
+            "original_blender_subdivide_parity":True,
             "original_blender_general_face_extrusion_parity":True,
             "native_primitive_cycles":extracted["new_primitive_lifecycle_cycles"],
             "native_no_net_tracked_allocation":True,
-            "does_not_verify":"inset/bevel/subdivide operator parity, materials or UVs"}
+            "does_not_verify":"bevel, merge/dissolve operator parity, materials or UVs"}
     pathlib.Path(sys.argv[3]).write_text(json.dumps(report,indent=2)+"\n")
     print("BLENDER_WEB_EXPANDED_PARITY="+json.dumps(report,sort_keys=True))
 
