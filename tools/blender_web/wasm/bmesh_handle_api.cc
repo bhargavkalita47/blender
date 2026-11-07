@@ -408,6 +408,36 @@ int web_mesh_transform_selected(int handle, int kind, float a, float b, float c)
   return 0;
 }
 
+#if defined(BLENDER_WEB_NATIVE_POKE)
+int web_mesh_poke_face(int handle, int index)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (index < 0 || index >= slot->mesh->totface) return -2;
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    if (i++ != index) continue;
+    const int old_verts = slot->mesh->totvert;
+    const int old_faces = slot->mesh->totface;
+    const int old_face_length = face->len;
+    blender::BMOperator op;
+    blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "poke");
+    blender::BMO_slot_buffer_from_single(
+        &op, blender::BMO_slot_get(op.slots_in, "faces"), &face->head);
+    // Default center_mode 0: original Blender weighted-median poke.
+    slot->top_face = nullptr; // Poke deletes the original face.
+    blender::BMO_op_exec(slot->mesh, &op);
+    blender::BMO_op_finish(slot->mesh, &op);
+    return slot->mesh->totvert == old_verts + 1 &&
+                   slot->mesh->totface == old_faces + old_face_length - 1 ?
+               0 : -3;
+  }
+  return -3;
+}
+#endif
+
 int web_mesh_delete_face(int handle, int index)
 {
   MeshSlot *slot = get_slot(handle);
