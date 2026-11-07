@@ -107,6 +107,7 @@ set(BLENDER_WEB_NATIVE_INCLUDES
   ${BLENDER_WEB_SOURCE_ROOT}/intern/guardedalloc/intern
   ${BLENDER_WEB_SOURCE_ROOT}/intern/eigen
   ${BLENDER_WEB_SOURCE_ROOT}/extern/rangetree
+  ${BLENDER_WEB_SOURCE_ROOT}/extern/wcwidth
 )
 
 # FMT_HEADER_ONLY allows the original BLI dependency to use native fmt headers
