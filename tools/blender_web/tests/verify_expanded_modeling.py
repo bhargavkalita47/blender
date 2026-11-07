@@ -27,6 +27,8 @@ core.web_mesh_poke_face.argtypes = [ctypes.c_int, ctypes.c_int]
 core.web_mesh_poke_face.restype = ctypes.c_int
 core.web_mesh_inset_face.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float]
 core.web_mesh_inset_face.restype = ctypes.c_int
+core.web_mesh_subdivide_all_edges.argtypes = [ctypes.c_int,ctypes.c_int]
+core.web_mesh_subdivide_all_edges.restype = ctypes.c_int
 core.web_mesh_select_element.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int]
 core.web_mesh_select_element.restype = ctypes.c_int
 core.web_mesh_selected_element_count.argtypes = [ctypes.c_int,ctypes.c_int]
@@ -133,6 +135,15 @@ def main():
             inset_snapshot["triangles"]) == (8,12,5,20,10), inset_snapshot
     assert core.web_mesh_destroy(inset)==0
 
+    subdivided = core.web_mesh_create_plane()
+    assert subdivided > 0
+    assert core.web_mesh_subdivide_all_edges(subdivided, 0) == -2
+    assert core.web_mesh_subdivide_all_edges(subdivided, 1) == 0
+    subdivided_snapshot = snapshot(subdivided)
+    assert subdivided_snapshot["verts"] >= 9, subdivided_snapshot
+    assert subdivided_snapshot["faces"] >= 4, subdivided_snapshot
+    assert core.web_mesh_destroy(subdivided) == 0
+
     extruded = core.web_mesh_create_plane()
     assert extruded > 0
     before_extrude = snapshot(extruded)
@@ -209,6 +220,7 @@ def main():
         "new_primitive_lifecycle_cycles":600, "vertex_selection_transforms":True,
         "face_deletion":True, "original_blender_bmo_poke":True,
         "poked_plane":poked, "inset_plane":inset_snapshot,
+        "subdivided_plane":subdivided_snapshot, "original_blender_bmo_subdivide":True,
         "extruded_plane":extruded_snapshot, "subdivided_plane":subdivided_snapshot,
         "original_blender_bmo_subdivide":True, "general_face_extrusion":True,
         "edge_face_selection":True, "vertex_edge_face_deletion":True,
