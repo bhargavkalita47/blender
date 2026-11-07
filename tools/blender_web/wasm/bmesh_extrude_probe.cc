@@ -61,7 +61,7 @@ int cube_extrude_once()
   blender::BMFace *cap = nullptr;
   int caps = 0;
   int moved_verts = 0;
-  BMO_ITER (cap, &iter, op.slots_out, "faces.out", BM_FACE) {
+  BMO_ITER (cap, &iter, op.slots_out, "faces.out", blender::BM_FACE) {
     ++caps;
     blender::BMLoop *loop = BM_FACE_FIRST_LOOP(cap);
     blender::BMLoop *first = loop;
