@@ -22,7 +22,8 @@ enum {
   BLENDER_WEB_CAP_TRIANGLE_CORNERS = 1u << 5,
   BLENDER_WEB_CAP_PLANAR_NGON = 1u << 6,
   BLENDER_WEB_CAP_NAMED_UV = 1u << 7,
-  BLENDER_WEB_CAP_FACE_NORMALS = 1u << 8
+  BLENDER_WEB_CAP_FACE_NORMALS = 1u << 8,
+  BLENDER_WEB_CAP_BOUNDARY_COLLAPSE = 1u << 9
 };
 
 /* ABI discovery (experimental). A caller MUST test capability bits before
@@ -77,6 +78,14 @@ int web_mesh_face_normal_float_count(int handle);
 int web_mesh_copy_face_normals(int handle, float *out, int float_capacity);
 int web_mesh_validate_topology(int handle);
 int web_mesh_translate(int handle, float dx, float dy, float dz);
+/* Optional: BLENDER_WEB_CAP_BOUNDARY_COLLAPSE. Source-backed BMesh
+ * BM_vert_dissolve/BM_edge_collapse restricted to a single simple polygon
+ * with one boundary loop. Enumeration indices are invalidated after edits;
+ * -4 means unsupported topology, -2 invalid index, -1 invalid mesh token.
+ * This is not a general Blender dissolve/merge tool.
+ */
+int web_mesh_dissolve_boundary_vertex(int handle, int vertex_index);
+int web_mesh_collapse_boundary_edge(int handle, int edge_index);
 
 /* Optional: BLENDER_WEB_CAP_LOOP_UV. Copy is ordered by BMesh face traversal
  * then winding-order corners, not by vertex and not by arbitrary triangles.
