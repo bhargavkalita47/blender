@@ -139,6 +139,7 @@ def main():
         "reference_cases":reference_cases,
         "new_primitive_lifecycle_cycles":600, "vertex_selection_transforms":True,
         "face_deletion":True, "original_blender_bmo_poke":True,
+        "poked_plane":poked,
         "multi_mesh_independence":True,
         "invalid_parameters_rejected":True, "tracked_allocations_before":baseline,
         "tracked_allocations_after":core.web_mesh_memory_bytes()
