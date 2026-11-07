@@ -9,6 +9,10 @@
  * Not a production scene manager or generalized mesh editing API.
  */
 #include "MEM_guardedalloc.h"
+#if defined(BLENDER_WEB_NATIVE_UV)
+#  include "BKE_customdata.hh"
+#  include "DNA_customdata_types.h"
+#endif
 #include "bmesh.hh"
 
 #include <cstdint>
@@ -882,6 +886,80 @@ int web_mesh_copy_triangles(int handle, std::uint32_t *out, int index_capacity)
   }
   return i == n ? i : -3;
 }
+
+
+#if defined(BLENDER_WEB_NATIVE_UV)
+/* Phase 2.2.4 UV experiment. UVs belong to BMLoop (face corners), NOT
+ * BMVert: one vertex may have distinct coordinates on a UV seam.
+ * Every accessor uses the existing generation-checked opaque mesh handle.
+ */
+int web_mesh_uv_layer_ensure(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  blender::BMesh *bm = slot->mesh;
+  if (blender::CustomData_get_offset(&bm->ldata, blender::CD_PROP_FLOAT2) == -1) {
+    blender::BM_data_layer_add(bm, &bm->ldata, blender::CD_PROP_FLOAT2);
+  }
+  return blender::CustomData_get_offset(&bm->ldata, blender::CD_PROP_FLOAT2) >= 0 ? 0 : -2;
+}
+
+int web_mesh_uv_float_count(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (blender::CustomData_get_offset(&slot->mesh->ldata, blender::CD_PROP_FLOAT2) < 0) return -2;
+  if (slot->mesh->totloop > std::numeric_limits<int>::max() / 2) return -3;
+  return slot->mesh->totloop * 2;
+}
+
+int web_mesh_set_uv(int handle, int face_index, int corner_index, float u, float v)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!std::isfinite(u) || !std::isfinite(v)) return -4;
+  blender::BMesh *bm = slot->mesh;
+  if (face_index < 0 || face_index >= bm->totface || corner_index < 0) return -2;
+  const int offset = blender::CustomData_get_offset(&bm->ldata, blender::CD_PROP_FLOAT2);
+  if (offset < 0) return -3;
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, bm, blender::BM_FACES_OF_MESH) {
+    if (i++ != face_index) continue;
+    if (corner_index >= face->len) return -2;
+    blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+    for (int corner = 0; corner < corner_index; ++corner) loop = loop->next;
+    float (*uv)[2] = BM_ELEM_CD_GET_FLOAT2_P(loop, offset);
+    (*uv)[0] = u;
+    (*uv)[1] = v;
+    return 0;
+  }
+  return -2;
+}
+
+int web_mesh_copy_uvs(int handle, float *out, int float_capacity)
+{
+  const int count = web_mesh_uv_float_count(handle);
+  if (count < 0) return count;
+  if (count == 0) return 0;
+  if (!out || float_capacity < count) return -3;
+  MeshSlot *slot = get_slot(handle);
+  const int offset = blender::CustomData_get_offset(&slot->mesh->ldata, blender::CD_PROP_FLOAT2);
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int n = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    const blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+    for (int corner = 0; corner < face->len; ++corner, loop = loop->next) {
+      const float (*uv)[2] = BM_ELEM_CD_GET_FLOAT2_P(loop, offset);
+      out[n++] = (*uv)[0];
+      out[n++] = (*uv)[1];
+    }
+  }
+  return n == count ? n : -4;
+}
+#endif  // BLENDER_WEB_NATIVE_UV
 
 int web_mesh_live_count()
 {

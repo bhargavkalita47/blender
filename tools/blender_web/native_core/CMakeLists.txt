@@ -127,7 +127,7 @@ set_source_files_properties(
 target_include_directories(blender_web_native_core PRIVATE
   ${BLENDER_WEB_NATIVE_INCLUDES} ${FMT_INCLUDE_DIR})
 target_compile_definitions(blender_web_native_core PRIVATE
-  NDEBUG FMT_HEADER_ONLY BLENDER_WEB_MINIMAL_BMO BLENDER_WEB_NATIVE_POKE BLENDER_WEB_NATIVE_INSET BLENDER_WEB_NATIVE_SUBDIVIDE)
+  NDEBUG FMT_HEADER_ONLY BLENDER_WEB_MINIMAL_BMO BLENDER_WEB_NATIVE_POKE BLENDER_WEB_NATIVE_INSET BLENDER_WEB_NATIVE_SUBDIVIDE BLENDER_WEB_NATIVE_UV)
 # Required by existing Blender bit-7 flag enums in the current source build.
 # DNA serialization semantics must be validated before general native parity.
 target_compile_options(blender_web_native_core PRIVATE
