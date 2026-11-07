@@ -260,7 +260,7 @@ if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
     -Wl,--gc-sections -Wl,--error-limit=0 \
     -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
     -sERROR_ON_UNDEFINED_SYMBOLS=1 \
-    -sEXPORTED_FUNCTIONS='["_web_bmesh_make_cube_once"]' \
+    -sEXPORTED_FUNCTIONS='["_web_bmesh_make_cube_once","_web_bmesh_cube_stress"]' \
     -o "$OUT/bmesh_cube.mjs" > "$OUT/bmesh-cube-link.log" 2>&1; then
   if node "$ROOT/tools/blender_web/wasm/verify-bmesh-cube.mjs" "$OUT" > "$OUT/bmesh-cube-run.log" 2>&1; then
     echo '{"link_success":true,"runtime_success":true}' > "$OUT/cube-probe-status.json"
