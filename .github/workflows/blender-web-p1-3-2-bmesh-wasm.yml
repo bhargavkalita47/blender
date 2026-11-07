@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 1.3.2 BMesh WebAssembly source probe
+
+on:
+  push:
+    branches:
+      - dev/p1-bmesh-wasm
+  pull_request:
+    branches:
+      - blender-for-web
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bmesh-wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out Blender source and WASM experiment
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            source/blender
+            intern
+            extern
+            tools/blender_web/wasm
+          sparse-checkout-cone-mode: false
+
+      - name: Install pinned Emscripten 4.0.12
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install 4.0.12
+          "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.12
+
+      - name: Probe genuine BMesh source translation units
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          bash tools/blender_web/wasm/build-bmesh-objects.sh
+
+      - name: Upload BMesh compilation evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blender-web-p1-3-2-bmesh-object-evidence
+          path: |
+            build/blender_web/bmesh_wasm/*.log
+            build/blender_web/bmesh_wasm/status.json
+          if-no-files-found: warn
+          retention-days: 30
