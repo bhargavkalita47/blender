@@ -52,6 +52,11 @@ def main():
         "uv_sphere_8x4",
         lambda bm: bmesh.ops.create_uvsphere(
             bm, u_segments=8, v_segments=4, radius=1.0, calc_uvs=False))
+    def poke_plane(bm):
+        bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1.0)
+        bmesh.ops.poke(bm, faces=list(bm.faces), offset=0.0,
+                       center_mode="MEAN_WEIGHTED", use_relative_offset=False)
+    results["poked_plane"] = capture("poked_plane", poke_plane)
     result = {"status":"pass","blender_build_hash":str(build_hash).lower(),
               "pinned_source_sha":PINNED,"shapes":results}
     print("BLENDER_WEB_EXPANDED_ORIGINAL=" + json.dumps(result,sort_keys=True))
