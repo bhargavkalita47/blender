@@ -30,6 +30,12 @@ jobs:
             tools/blender_web/wasm
           sparse-checkout-cone-mode: false
 
+      - name: Install header-only fmt dependency for wasm32 source experiment
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libfmt-dev
+
       - name: Native compiler regression check for pointer-width assertion
         shell: bash
         run: |
