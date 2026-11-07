@@ -174,6 +174,7 @@ SUPPORT=(
   source/blender/blenlib/intern/task_pool.cc
   source/blender/blenlib/intern/task_scheduler.cc
   source/blender/blenlib/intern/math_geom.cc
+  source/blender/blenlib/intern/threads.cc
 )
 SUPPORT_OBJECTS=()
 support_failed=0
