@@ -164,6 +164,12 @@ SUPPORT=(
   source/blender/bmesh/intern/bmesh_opdefines.cc
   source/blender/bmesh/operators/bmo_dupe.cc
   source/blender/bmesh/operators/bmo_extrude.cc
+  source/blender/blenlib/intern/BLI_assert.cc
+  source/blender/blenlib/intern/BLI_ghash.cc
+  source/blender/blenlib/intern/string.cc
+  source/blender/blenlib/intern/task_iterator.cc
+  source/blender/blenlib/intern/math_matrix_c.cc
+  source/blender/bmesh/intern/bmesh_polygon.cc
 )
 SUPPORT_OBJECTS=()
 support_failed=0
