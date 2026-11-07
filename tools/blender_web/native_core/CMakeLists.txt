@@ -23,6 +23,14 @@ if(BLENDER_WEB_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-sanitize=function
                       -fno-omit-frame-pointer -O1)
   add_link_options(-fsanitize=address,undefined -fno-sanitize=function)
+  # Blender's BLI_mempool packs arbitrary-size CustomData elements and uses a
+  # BLI_freenode pointer overlay; some layer strides are 4-byte rather than
+  # pointer-aligned. UBSan's strict alignment checker flags this Blender
+  # allocator's internal freelist layout. Suppress only that source/category;
+  # retain full ASan, other UBSan checks, and bridge alignment instrumentation.
+  set_source_files_properties(
+    "${CMAKE_CURRENT_LIST_DIR}/../../../source/blender/blenlib/intern/BLI_mempool.cc"
+    PROPERTIES COMPILE_OPTIONS "-fno-sanitize=alignment")
 endif()
 
 get_filename_component(BLENDER_WEB_SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
