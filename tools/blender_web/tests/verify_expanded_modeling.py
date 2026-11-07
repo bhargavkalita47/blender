@@ -35,6 +35,8 @@ core.web_mesh_delete_element.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_int]
 core.web_mesh_delete_element.restype = ctypes.c_int
 core.web_mesh_extrude_face_z.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_float]
 core.web_mesh_extrude_face_z.restype = ctypes.c_int
+core.web_mesh_subdivide_all_edges.argtypes = [ctypes.c_int, ctypes.c_int]
+core.web_mesh_subdivide_all_edges.restype = ctypes.c_int
 
 FIXTURES = [
     ("grid_3x2", lambda: core.web_mesh_create_grid(3, 2), (12, 17, 6, 24, 12)),
@@ -153,6 +155,18 @@ def main():
     assert core.web_mesh_delete_element(extruded, 9, 0) == -2
     assert core.web_mesh_destroy(extruded) == 0
 
+    subdivided = core.web_mesh_create_plane()
+    assert subdivided > 0
+    assert core.web_mesh_subdivide_all_edges(subdivided, 0) == -2
+    assert core.web_mesh_subdivide_all_edges(subdivided, 3) == -2
+    assert core.web_mesh_subdivide_all_edges(subdivided, 1) == 0
+    subdivided_snapshot = snapshot(subdivided)
+    assert (subdivided_snapshot["verts"], subdivided_snapshot["edges"],
+            subdivided_snapshot["faces"], subdivided_snapshot["loops"],
+            subdivided_snapshot["triangles"]) == (9, 12, 4, 16, 8), subdivided_snapshot
+    assert core.web_mesh_destroy(subdivided) == 0
+    assert core.web_mesh_subdivide_all_edges(subdivided, 1) == -1
+
     grid_for_deletion = core.web_mesh_create_grid(2, 2)
     assert core.web_mesh_delete_element(grid_for_deletion, 3, 0) == 0
     assert core.web_mesh_validate_topology(grid_for_deletion) == 0
@@ -192,7 +206,8 @@ def main():
         "new_primitive_lifecycle_cycles":600, "vertex_selection_transforms":True,
         "face_deletion":True, "original_blender_bmo_poke":True,
         "poked_plane":poked, "inset_plane":inset_snapshot,
-        "extruded_plane":extruded_snapshot, "general_face_extrusion":True,
+        "extruded_plane":extruded_snapshot, "subdivided_plane":subdivided_snapshot,
+        "original_blender_bmo_subdivide":True, "general_face_extrusion":True,
         "edge_face_selection":True, "vertex_edge_face_deletion":True,
         "original_blender_bmo_inset":True,
         "multi_mesh_independence":True,
