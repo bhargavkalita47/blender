@@ -30,13 +30,21 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Validate analyzer Python syntax
-        run: python3 -m py_compile tools/blender_web/dependencies/audit_static.py
+        run: |
+          python3 -m py_compile tools/blender_web/dependencies/audit_static.py
+          python3 -m py_compile tools/blender_web/dependencies/verify_symbol_candidates.py
 
       - name: Run static dependency closure analysis
         run: |
           python3 tools/blender_web/dependencies/audit_static.py \
             --root . \
             --out build/blender_web/dependency-audit.json
+
+      - name: Verify source-level symbol-provider candidates
+        run: |
+          python3 tools/blender_web/dependencies/verify_symbol_candidates.py \
+            --root . \
+            --out build/blender_web/symbol-candidates.json
 
       - name: Summarize ambiguous source includes and target SCCs
         run: |
@@ -61,5 +69,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: blender-web-phase-1-2-static-audit
-          path: build/blender_web/dependency-audit.json
+          path: |
+            build/blender_web/dependency-audit.json
+            build/blender_web/symbol-candidates.json
           retention-days: 30
