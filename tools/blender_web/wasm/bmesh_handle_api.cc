@@ -14,6 +14,8 @@
 #include <cstdint>
 #include <cmath>
 #include <limits>
+#include <vector>
+#include <algorithm>
 
 namespace {
 
@@ -292,7 +294,7 @@ int web_mesh_validate_topology(int handle)
   int counted_loops = 0;
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
     ++counted_faces;
-    if (!face->l_first || face->len != 4) {
+    if (!face->l_first || face->len < 3 || face->len > 128) {
       return -2;
     }
     blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
@@ -358,17 +360,19 @@ int web_mesh_triangle_index_count(int handle)
   if (!slot) {
     return -1;
   }
-  if (slot->mesh->totface > 357913941) {
-    return -3;
-  }
   blender::BMIter iter;
   blender::BMFace *face = nullptr;
+  int64_t triangle_count = 0;
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
-    if (face->len != 4) {
+    if (face->len < 3 || face->len > 128) {
+      return -3;
+    }
+    triangle_count += (face->len - 2);
+    if (triangle_count > std::numeric_limits<int>::max() / 3) {
       return -3;
     }
   }
-  return slot->mesh->totface * 6;
+  return int(triangle_count * 3);
 }
 
 int web_mesh_copy_positions(int handle, float *out, int float_capacity)
@@ -407,17 +411,17 @@ int web_mesh_copy_triangles(int handle, std::uint32_t *out, int index_capacity)
   blender::BMFace *face = nullptr;
   int i = 0;
   BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
-    blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
-    const std::uint32_t a = std::uint32_t(blender::BM_elem_index_get(loop->v));
-    const std::uint32_t b = std::uint32_t(blender::BM_elem_index_get(loop->next->v));
-    const std::uint32_t c = std::uint32_t(blender::BM_elem_index_get(loop->next->next->v));
-    const std::uint32_t d = std::uint32_t(blender::BM_elem_index_get(loop->prev->v));
-    out[i++] = a;
-    out[i++] = b;
-    out[i++] = c;
-    out[i++] = a;
-    out[i++] = c;
-    out[i++] = d;
+    // Convex-face fan triangulation for transfer only. True Blender
+    // n-gon triangulation and UV-corner triangulation belong to Phase 2.2.4.
+    blender::BMLoop *first = BM_FACE_FIRST_LOOP(face);
+    blender::BMLoop *loop = first->next;
+    const std::uint32_t v0 = std::uint32_t(blender::BM_elem_index_get(first->v));
+    for (int corner = 1; corner < face->len - 1; ++corner) {
+      out[i++] = v0;
+      out[i++] = std::uint32_t(blender::BM_elem_index_get(loop->v));
+      out[i++] = std::uint32_t(blender::BM_elem_index_get(loop->next->v));
+      loop = loop->next;
+    }
   }
   return i == n ? i : -3;
 }
