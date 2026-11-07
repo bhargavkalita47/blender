@@ -18,7 +18,9 @@ enum {
   BLENDER_WEB_CAP_COMPONENT_SELECTION = 1u << 1,
   BLENDER_WEB_CAP_INSET = 1u << 2,
   BLENDER_WEB_CAP_SUBDIVIDE = 1u << 3,
-  BLENDER_WEB_CAP_LOOP_UV = 1u << 4
+  BLENDER_WEB_CAP_LOOP_UV = 1u << 4,
+  BLENDER_WEB_CAP_TRIANGLE_CORNERS = 1u << 5,
+  BLENDER_WEB_CAP_PLANAR_NGON = 1u << 6
 };
 
 /* ABI discovery (experimental). A caller MUST test capability bits before
@@ -38,6 +40,12 @@ int web_mesh_create_plane(void);
 int web_mesh_create_grid(int x_segments, int y_segments);
 int web_mesh_create_cylinder(int segments);
 int web_mesh_create_uv_sphere(int segments, int rings);
+/* Optional: BLENDER_WEB_CAP_PLANAR_NGON. XY coordinates must describe a
+ * simple, non-self-intersecting polygon; each point is x,y in packed order.
+ * Valid length: 3..128, finite coordinates with absolute value <= 1e6.
+ * Errors: -4 invalid input, -3 mesh table full, -2 BMesh allocation failure.
+ */
+int web_mesh_create_polygon_xy(const float *xy, int vertex_count);
 int web_mesh_destroy(int handle);
 int web_mesh_live_count(void);
 int web_mesh_memory_bytes(void);
@@ -50,13 +58,22 @@ int web_mesh_position_float_count(int handle);
 int web_mesh_triangle_index_count(int handle);
 int web_mesh_copy_positions(int handle, float *out, int float_capacity);
 int web_mesh_copy_triangles(int handle, uint32_t *out, int index_capacity);
+/* Optional: BLENDER_WEB_CAP_TRIANGLE_CORNERS. One corner index per triangle
+ * vertex, in exactly the same triangle order as copy_triangles. This index
+ * addresses the face-major BMLoop array returned by copy_uvs, as pairs of
+ * floats; it is NOT a vertex index. Counts match triangle_index_count.
+ * The implementation uses original Blender BMesh tessellation, including
+ * for concave n-gons. Caller owns all output buffers; topology mutations
+ * invalidate prior snapshots and capacities.
+ */
+int web_mesh_copy_triangle_corners(int handle, uint32_t *out, int index_capacity);
 int web_mesh_validate_topology(int handle);
 int web_mesh_translate(int handle, float dx, float dy, float dz);
 
 /* Optional: BLENDER_WEB_CAP_LOOP_UV. Copy is ordered by BMesh face traversal
  * then winding-order corners, not by vertex and not by arbitrary triangles.
- * UI consumers must NOT pair this with triangulated vertex indices without
- * a future explicit triangle-corner remapping API.
+ * Consumers pair this with web_mesh_copy_triangle_corners, never with
+ * vertex indices directly: shared 3D vertices may have different UV seams.
  */
 int web_mesh_uv_layer_ensure(int handle);
 int web_mesh_uv_float_count(int handle);
