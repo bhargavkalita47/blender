@@ -238,7 +238,7 @@ std::uint32_t web_mesh_api_capabilities()
   // Original Blender polygon tessellation and corresponding per-corner mapping.
   caps |= (1u << 5) | (1u << 6) | (1u << 8) | (1u << 9);
 #  if defined(BLENDER_WEB_NATIVE_UV)
-  caps |= (1u << 7);
+  caps |= (1u << 7) | (1u << 10);
 #  endif
   return caps;
 }
@@ -1334,6 +1334,129 @@ int web_mesh_copy_uvs_named(int handle, const char *name, float *out, int capaci
   }
   return n == count ? n : -3;
 }
+
+/* Original Blender per-domain named scalar CustomData. Domain keys mirror
+ * component selection (1=vertex, 2=edge, 3=face) with 4=face corner.
+ * Unlike a pseudo-attribute array, storage is owned by BMesh element headers
+ * and Blender operators decide its interpolation and propagation semantics.
+ */
+static blender::CustomData *web_mesh_attr_domain(blender::BMesh *bm, int domain)
+{
+  switch (domain) {
+    case 1: return &bm->vdata;
+    case 2: return &bm->edata;
+    case 3: return &bm->pdata;
+    case 4: return &bm->ldata;
+    default: return nullptr;
+  }
+}
+
+static int web_mesh_attr_elem_count(const blender::BMesh *bm, int domain)
+{
+  switch (domain) {
+    case 1: return bm->totvert;
+    case 2: return bm->totedge;
+    case 3: return bm->totface;
+    case 4: return bm->totloop;
+    default: return -4;
+  }
+}
+
+static blender::BMHeader *web_mesh_attr_head_at(blender::BMesh *bm, int domain, int index)
+{
+  if (index < 0 || index >= web_mesh_attr_elem_count(bm, domain)) return nullptr;
+  blender::BMIter iter;
+  int n = 0;
+  if (domain == 1) {
+    blender::BMVert *element = nullptr;
+    BM_ITER_MESH (element, &iter, bm, blender::BM_VERTS_OF_MESH) {
+      if (n++ == index) return &element->head;
+    }
+  }
+  else if (domain == 2) {
+    blender::BMEdge *element = nullptr;
+    BM_ITER_MESH (element, &iter, bm, blender::BM_EDGES_OF_MESH) {
+      if (n++ == index) return &element->head;
+    }
+  }
+  else if (domain == 3) {
+    blender::BMFace *element = nullptr;
+    BM_ITER_MESH (element, &iter, bm, blender::BM_FACES_OF_MESH) {
+      if (n++ == index) return &element->head;
+    }
+  }
+  else if (domain == 4) {
+    blender::BMFace *face = nullptr;
+    BM_ITER_MESH (face, &iter, bm, blender::BM_FACES_OF_MESH) {
+      blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+      for (int c = 0; c < face->len; ++c, loop = loop->next) {
+        if (n++ == index) return &loop->head;
+      }
+    }
+  }
+  return nullptr;
+}
+
+int web_mesh_attr_float_count(int handle, int domain)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  return web_mesh_attr_elem_count(slot->mesh, domain);
+}
+
+int web_mesh_attr_float_layer_ensure(int handle, int domain, const char *name)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  blender::CustomData *data = web_mesh_attr_domain(slot->mesh, domain);
+  if (!data) return -4;
+  if (blender::CustomData_get_offset_named(data, blender::CD_PROP_FLOAT, name) >= 0) return 0;
+  if (blender::CustomData_number_of_layers(data, blender::CD_PROP_FLOAT) >= 8) return -5;
+  blender::BM_data_layer_add_named(slot->mesh, data, blender::CD_PROP_FLOAT, name);
+  return blender::CustomData_get_offset_named(data, blender::CD_PROP_FLOAT, name) >= 0 ?
+             0 : -2;
+}
+
+int web_mesh_attr_float_set(int handle, int domain, const char *name,
+                            int element_index, float value)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name) || !std::isfinite(value)) return -4;
+  blender::CustomData *data = web_mesh_attr_domain(slot->mesh, domain);
+  if (!data) return -4;
+  const int offset = blender::CustomData_get_offset_named(data, blender::CD_PROP_FLOAT, name);
+  if (offset < 0) return -3;
+  blender::BMHeader *elem = web_mesh_attr_head_at(slot->mesh, domain, element_index);
+  if (!elem) return -2;
+  *reinterpret_cast<float *>(reinterpret_cast<char *>(elem->data) + offset) = value;
+  return 0;
+}
+
+int web_mesh_attr_float_copy(int handle, int domain, const char *name,
+                             float *out, int float_capacity)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  blender::CustomData *data = web_mesh_attr_domain(slot->mesh, domain);
+  if (!data) return -4;
+  const int offset = blender::CustomData_get_offset_named(data, blender::CD_PROP_FLOAT, name);
+  if (offset < 0) return -3;
+  const int count = web_mesh_attr_elem_count(slot->mesh, domain);
+  if (count < 0) return -4;
+  if (count == 0) return 0;
+  if (!out || float_capacity < count) return -2;
+  for (int i = 0; i < count; ++i) {
+    blender::BMHeader *elem = web_mesh_attr_head_at(slot->mesh, domain, i);
+    if (!elem) return -3;
+    out[i] = *reinterpret_cast<const float *>(reinterpret_cast<const char *>(elem->data) +
+                                              offset);
+  }
+  return count;
+}
+
 #endif  // BLENDER_WEB_NATIVE_CORE_ABI
 #endif  // BLENDER_WEB_NATIVE_UV
 
