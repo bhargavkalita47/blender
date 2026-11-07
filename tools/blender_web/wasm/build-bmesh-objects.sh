@@ -92,3 +92,21 @@ test -s "$OUT/bmesh_disk.wasm"
 test -s "$OUT/bmesh_disk.mjs"
 node "$ROOT/tools/blender_web/wasm/verify-bmesh-disk.mjs" "$OUT"
 echo "::endgroup::"
+
+echo "::group::Diagnostic only: resolve BMesh create/free linker dependencies"
+if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+  "$ROOT/source/blender/bmesh/intern/bmesh_mesh.cc" \
+  "$ROOT/tools/blender_web/wasm/bmesh_lifecycle_probe.cc" \
+  -Wl,--gc-sections \
+  -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
+  -sERROR_ON_UNDEFINED_SYMBOLS=1 \
+  -sEXPORTED_FUNCTIONS='["_web_bmesh_lifecycle_probe"]' \
+  -o "$OUT/bmesh_lifecycle_probe.mjs" > "$OUT/bmesh-lifecycle-link.log" 2>&1; then
+    echo '{"link_success":true}' > "$OUT/lifecycle-probe-status.json"
+    echo "BMesh lifecycle linked; execution requires explicit runtime validation."
+else
+    echo '{"link_success":false,"status":"dependency-discovery-only"}' > "$OUT/lifecycle-probe-status.json"
+    echo "Expected at this stage: original Blender allocator/BKE/CustomData symbols missing."
+    grep -E "(undefined symbol:|error:|wasm-ld:)" "$OUT/bmesh-lifecycle-link.log" | head -70 || true
+fi
+echo "::endgroup::"
