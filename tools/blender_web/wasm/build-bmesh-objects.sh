@@ -207,7 +207,10 @@ em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
     exit 1
   }
 if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
-    "$OUT/bmesh_mesh_lifecycle.o" "${SUPPORT_OBJECTS[@]}" \
+    "$OUT/bmesh_mesh_lifecycle.o" \
+    "$OUT/bmesh_structure.cc.o" "$OUT/bmesh_core.cc.o" \
+    "$OUT/bmesh_construct.cc.o" "$OUT/bmesh_query.cc.o" \
+    "${SUPPORT_OBJECTS[@]}" \
     "$ROOT/tools/blender_web/wasm/bmesh_lifecycle_probe.cc" \
     -Wl,--gc-sections -Wl,--error-limit=0 \
     -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
