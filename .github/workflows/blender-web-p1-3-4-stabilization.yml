@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 1.3.4 WASM performance memory and 3 browsers
+on:
+  push:
+    branches:
+      - dev/p1-wasm-stabilization
+  pull_request:
+    branches:
+      - dev/p1-browser-mesh
+      - blender-for-web
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wasm-stabilization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Check out pinned Blender source
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            source/blender
+            intern
+            extern
+            tools/blender_web/wasm
+          sparse-checkout-cone-mode: false
+
+      - name: Install compatible fmt headers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libfmt-dev
+
+      - name: Install pinned Emscripten 4.0.12
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install 4.0.12
+          "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.12
+
+      - name: Build original Blender BMesh and enforce all Phase 1.3.2 gates
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          bash tools/blender_web/wasm/build-bmesh-objects.sh
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("build/blender_web/bmesh_wasm")
+          for name in ["lifecycle-expanded","cube-probe","extrude-probe","handle-api"]:
+              status=json.loads((root/f"{name}-status.json").read_text())
+              assert status.get("link_success") is True, (name,status)
+              assert status.get("runtime_success") is True, (name,status)
+          print("All original Blender BMesh WASM gates passed")
+          PY
+
+      - name: Verify Blender vertex and triangle transfer under Node
+        run: |
+          node tools/blender_web/wasm/verify-bmesh-mesh-buffers.mjs build/blender_web/bmesh_wasm
+
+      - name: Benchmark 2000 full create edit transfer free cycles
+        run: |
+          node tools/blender_web/wasm/verify-bmesh-performance.mjs build/blender_web/bmesh_wasm 2000 | tee build/blender_web/bmesh_wasm/performance-results.json
+
+      - name: Install pinned Playwright and Chromium Firefox WebKit
+        run: |
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx --no-install playwright install --with-deps chromium firefox webkit
+
+      - name: Verify real Blender WebAssembly in three browser engines
+        run: |
+          node tools/blender_web/wasm/verify-bmesh-browser.mjs build/blender_web/bmesh_wasm | tee build/blender_web/bmesh_wasm/browser-results.log
+
+      - name: Upload reproducibility and performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-p1-3-4-wasm-stabilization
+          path: |
+            build/blender_web/bmesh_wasm/status.json
+            build/blender_web/bmesh_wasm/*-status.json
+            build/blender_web/bmesh_wasm/performance-results.json
+            build/blender_web/bmesh_wasm/browser-results.log
+            build/blender_web/bmesh_wasm/bmesh_handles.wasm
+            build/blender_web/bmesh_wasm/bmesh_handles.mjs
+            build/blender_web/bmesh_wasm/bmesh-handles-run.log
+            build/blender_web/bmesh_wasm/*.log
+          if-no-files-found: warn
+          retention-days: 30
