@@ -1,0 +1,97 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 2.2.2 pinned native Blender reference parity
+
+on:
+  push:
+    branches:
+      - dev/p2-core-extraction
+  pull_request:
+    branches:
+      - blender-for-web
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-pinned-reference-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out original Blender and extracted native core source
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            source/blender
+            intern
+            extern
+            tools/blender_web
+          sparse-checkout-cone-mode: false
+
+      - name: Install native core compiler and Blender headless runtime dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang ninja-build libfmt-dev \
+            libx11-6 libxi6 libxrender1 libxkbcommon0 libegl1 libopengl0 \
+            libgl1 libglib2.0-0 libsm6 libxext6
+
+      - name: Check parity scripts compile
+        run: |
+          python3 -m py_compile \
+            tools/blender_web/tests/native_reference.py \
+            tools/blender_web/tests/export_extracted_parity.py \
+            tools/blender_web/tests/compare_reference_parity.py \
+            tools/blender_web/tests/download_pinned_reference.py
+
+      - name: Independently build original Blender native BMesh core
+        run: |
+          cmake -S tools/blender_web/native_core \
+            -B build/blender_web/native_core -G Ninja \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/blender_web/native_core --parallel 4
+          ctest --test-dir build/blender_web/native_core --output-on-failure
+
+      - name: Download official Blender binary matching exact pinned source SHA
+        run: |
+          python3 tools/blender_web/tests/download_pinned_reference.py \
+            build/blender_web/pinned_reference
+
+      - name: Validate actual Blender executable has exact pinned commit and generate reference
+        run: |
+          set -o pipefail
+          BLENDER_BIN="$(cat build/blender_web/pinned_reference/blender_path.txt)"
+          "$BLENDER_BIN" --background --factory-startup --disable-autoexec \
+            --python-exit-code 1 \
+            --python tools/blender_web/tests/native_reference.py \
+            2>&1 | tee build/blender_web/pinned-reference.log
+
+      - name: Run same geometry sequence through independently linked native core
+        run: |
+          set -o pipefail
+          python3 tools/blender_web/tests/export_extracted_parity.py \
+            build/blender_web/native_core/libblender_web_native_core.so \
+            | tee build/blender_web/extracted-reference.log
+
+      - name: Enforce geometry position edge winding normals area and triangulation parity
+        run: |
+          python3 tools/blender_web/tests/compare_reference_parity.py \
+            build/blender_web/pinned-reference.log \
+            build/blender_web/extracted-reference.log \
+            build/blender_web/phase-2-2-2-parity.json
+
+      - name: Upload reference binary provenance and machine-readable parity proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-p2-2-2-pinned-reference-evidence
+          path: |
+            build/blender_web/pinned_reference/reference_provenance.json
+            build/blender_web/pinned-reference.log
+            build/blender_web/extracted-reference.log
+            build/blender_web/phase-2-2-2-parity.json
+            build/blender_web/native_core/compile_commands.json
+            build/blender_web/native_core/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 30

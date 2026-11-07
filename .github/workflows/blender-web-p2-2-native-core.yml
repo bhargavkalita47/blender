@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 2.2 standalone native modeling core
+on:
+  push:
+    branches:
+      - dev/p2-core-extraction
+  pull_request:
+    branches:
+      - blender-for-web
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out original pinned Blender modeling sources
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            source/blender
+            intern
+            extern
+            tools/blender_web
+          sparse-checkout-cone-mode: false
+
+      - name: Install native compiler and narrow C++ dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang ninja-build libfmt-dev binutils
+
+      - name: Configure standalone Blender-derived native core WITHOUT full Blender CMake
+        run: |
+          cmake -S tools/blender_web/native_core \
+            -B build/blender_web/native_core -G Ninja \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Link independently shared native modeling core with no undefined symbols
+        run: |
+          set -o pipefail
+          cmake --build build/blender_web/native_core --parallel 4 --verbose \
+            | tee build/blender_web/native-core-build.log
+
+      - name: Execute independent Blender BMesh native C ABI regression
+        run: |
+          set -o pipefail
+          ctest --test-dir build/blender_web/native_core --output-on-failure \
+            | tee build/blender_web/native-core-ctest.log
+          build/blender_web/native_core/blender_web_native_smoke \
+            | tee build/blender_web/native-core-smoke.json
+
+      - name: Enforce no host renderer or window manager in selected source closure
+        run: |
+          python3 tools/blender_web/native_core/verify_build_isolation.py \
+            build/blender_web/native_core
+
+      - name: Upload native binary, compile commands and link graph evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-phase-2-2-native-core
+          path: |
+            build/blender_web/native-core-build.log
+            build/blender_web/native-core-ctest.log
+            build/blender_web/native-core-smoke.json
+            build/blender_web/native_core/compile_commands.json
+            build/blender_web/native_core/isolation-report.json
+            build/blender_web/native_core/libblender_web_native_core.so
+            build/blender_web/native_core/blender_web_native_smoke
+          if-no-files-found: warn
+          retention-days: 30
