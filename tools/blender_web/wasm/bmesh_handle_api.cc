@@ -12,6 +12,8 @@
 #include "bmesh.hh"
 
 #include <cstdint>
+#include <cmath>
+#include <limits>
 
 namespace {
 
@@ -106,6 +108,85 @@ int web_mesh_create_cube()
   slots[index].mesh = bm;
   slots[index].top_face = top;
   return make_handle(index);
+}
+
+int web_mesh_create_plane()
+{
+  // Phase 2.2.3: an open XY quad, using genuine Blender BMesh element creation.
+  // Unlike a cube this has boundary edges, which the validator must recognize.
+  unsigned index = kCapacity;
+  for (unsigned i = 0; i < kCapacity; ++i) {
+    if (slots[i].mesh == nullptr) {
+      index = i;
+      break;
+    }
+  }
+  if (index == kCapacity) {
+    return -3;
+  }
+  const blender::BMeshCreateParams params{true};
+  blender::BMesh *bm = blender::BM_mesh_create(&blender::bm_mesh_allocsize_default, &params);
+  if (!bm) {
+    return -2;
+  }
+  constexpr float positions[4][3] = {
+      {-1.0f, -1.0f, 0.0f}, {1.0f, -1.0f, 0.0f},
+      {1.0f, 1.0f, 0.0f}, {-1.0f, 1.0f, 0.0f},
+  };
+  blender::BMVert *verts[4]{};
+  bool ok = true;
+  for (int i = 0; i < 4; ++i) {
+    verts[i] = blender::BM_vert_create(bm, positions[i], nullptr, blender::BM_CREATE_NOP);
+    if (!verts[i]) {
+      ok = false;
+      break;
+    }
+  }
+  if (ok) {
+    ok = blender::BM_face_create_verts(
+             bm, verts, 4, nullptr, blender::BM_CREATE_NOP, true) != nullptr;
+  }
+  if (!ok || bm->totvert != 4 || bm->totedge != 4 || bm->totface != 1 ||
+      bm->totloop != 4) {
+    blender::BM_mesh_free(bm);
+    return -2;
+  }
+  slots[index].mesh = bm;
+  slots[index].top_face = nullptr;  // Closed-cube top-cap extrusion is not available.
+  return make_handle(index);
+}
+
+int web_mesh_translate(int handle, float dx, float dy, float dz)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) {
+    return -1;
+  }
+  const float delta[3] = {dx, dy, dz};
+  for (const float component : delta) {
+    if (!std::isfinite(component)) {
+      return -2;
+    }
+  }
+  // Validate the entire operation first so a float overflow cannot leave
+  // half of a BMesh translated. Geometry storage is original Blender BMVert.
+  blender::BMIter iter;
+  blender::BMVert *vert = nullptr;
+  BM_ITER_MESH (vert, &iter, slot->mesh, blender::BM_VERTS_OF_MESH) {
+    for (int axis = 0; axis < 3; ++axis) {
+      const double value = double(vert->co[axis]) + double(delta[axis]);
+      if (!std::isfinite(value) || std::abs(value) >
+                                       double(std::numeric_limits<float>::max())) {
+        return -3;
+      }
+    }
+  }
+  BM_ITER_MESH (vert, &iter, slot->mesh, blender::BM_VERTS_OF_MESH) {
+    for (int axis = 0; axis < 3; ++axis) {
+      vert->co[axis] += delta[axis];
+    }
+  }
+  return 0;
 }
 
 int web_mesh_destroy(int handle)
@@ -227,9 +308,20 @@ int web_mesh_validate_topology(int handle)
         return -4;
       }
       if (!loop->radial_next || !loop->radial_prev ||
-          loop->radial_next == loop || loop->radial_next->radial_next != loop ||
-          loop->radial_prev != loop->radial_next) {
-        return -5;  // Closed manifold cube: every edge has exactly two incident faces.
+          loop->radial_next->radial_prev != loop ||
+          loop->radial_prev->radial_next != loop) {
+        return -5;
+      }
+      // A plane has one radial loop per boundary edge; cube edges have two.
+      // Reject non-manifold >2 radial cycles until their behavior is specified.
+      if (loop->radial_next == loop) {
+        if (loop->radial_prev != loop) {
+          return -5;
+        }
+      }
+      else if (loop->radial_next->radial_next != loop ||
+               loop->radial_prev != loop->radial_next) {
+        return -5;
       }
       ++counted_loops;
       loop = loop->next;
