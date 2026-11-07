@@ -122,7 +122,7 @@ if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
   -Wl,--gc-sections \
   -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
   -sERROR_ON_UNDEFINED_SYMBOLS=1 \
-  -sEXPORTED_FUNCTIONS='["_web_bmesh_lifecycle_probe"]' \
+  -sEXPORTED_FUNCTIONS='["_web_bmesh_lifecycle_probe","_web_bmesh_lifecycle_stress"]' \
   -o "$OUT/bmesh_lifecycle_probe.mjs" > "$OUT/bmesh-lifecycle-link.log" 2>&1; then
     echo '{"link_success":true}' > "$OUT/lifecycle-probe-status.json"
     echo "BMesh lifecycle linked; execution requires explicit runtime validation."
@@ -194,10 +194,16 @@ if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
     -Wl,--gc-sections -Wl,--error-limit=0 \
     -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
     -sERROR_ON_UNDEFINED_SYMBOLS=1 \
-    -sEXPORTED_FUNCTIONS='["_web_bmesh_lifecycle_probe"]' \
+    -sEXPORTED_FUNCTIONS='["_web_bmesh_lifecycle_probe","_web_bmesh_lifecycle_stress"]' \
     -o "$OUT/bmesh_lifecycle_full.mjs" > "$OUT/lifecycle-full-link.log" 2>&1; then
   printf '{"compile_support_failures":%d,"link_success":true}\n' "$support_failed" > "$OUT/lifecycle-expanded-status.json"
-  echo "BM_mesh_create/free link succeeded (runtime test still required)."
+  if node "$ROOT/tools/blender_web/wasm/verify-bmesh-lifecycle.mjs" "$OUT" > "$OUT/bmesh-lifecycle-run.log" 2>&1; then
+    echo '{"link_success":true,"runtime_success":true,"stress_iterations":1000}' > "$OUT/lifecycle-expanded-status.json"
+    cat "$OUT/bmesh-lifecycle-run.log"
+  else
+    echo '{"link_success":true,"runtime_success":false}' > "$OUT/lifecycle-expanded-status.json"
+    cat "$OUT/bmesh-lifecycle-run.log"
+  fi
 else
   printf '{"compile_support_failures":%d,"link_success":false}\n' "$support_failed" > "$OUT/lifecycle-expanded-status.json"
   grep "undefined symbol:" "$OUT/lifecycle-full-link.log" | sed 's/^.*undefined symbol: //' | sort -u | head -75 || true
@@ -236,3 +242,29 @@ if [[ -f "$OUT/dep_customdata.cc.o" ]]; then
   fi
   echo "::endgroup::"
 fi
+
+
+echo "::group::Diagnostic: construct real Blender BMesh cube topology"
+if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+    "$OUT/bmesh_mesh_lifecycle.o" \
+    "$OUT/bmesh_structure.cc.o" "$OUT/bmesh_core.cc.o" \
+    "$OUT/bmesh_construct.cc.o" "${SUPPORT_OBJECTS[@]}" \
+    "$ROOT/tools/blender_web/wasm/bmesh_cube_probe.cc" \
+    -Wl,--gc-sections -Wl,--error-limit=0 \
+    -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
+    -sERROR_ON_UNDEFINED_SYMBOLS=1 \
+    -sEXPORTED_FUNCTIONS='["_web_bmesh_make_cube_once"]' \
+    -o "$OUT/bmesh_cube.mjs" > "$OUT/bmesh-cube-link.log" 2>&1; then
+  if node "$ROOT/tools/blender_web/wasm/verify-bmesh-cube.mjs" "$OUT" > "$OUT/bmesh-cube-run.log" 2>&1; then
+    echo '{"link_success":true,"runtime_success":true}' > "$OUT/cube-probe-status.json"
+    cat "$OUT/bmesh-cube-run.log"
+  else
+    echo '{"link_success":true,"runtime_success":false}' > "$OUT/cube-probe-status.json"
+    cat "$OUT/bmesh-cube-run.log"
+  fi
+else
+  echo '{"link_success":false,"runtime_success":false}' > "$OUT/cube-probe-status.json"
+  grep 'undefined symbol:' "$OUT/bmesh-cube-link.log" | sed 's/^.*undefined symbol: //' | sort -u | head -90 || true
+  grep 'error:' "$OUT/bmesh-cube-link.log" | grep -v 'undefined symbol:' | head -20 || true
+fi
+echo "::endgroup::"
