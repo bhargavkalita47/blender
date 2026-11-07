@@ -41,6 +41,14 @@ lib.web_mesh_extrude_top.argtypes = [I, F]
 lib.web_mesh_extrude_face_z.argtypes = [I, I, F]
 lib.web_mesh_extrude_top.restype = I
 lib.web_mesh_extrude_face_z.restype = I
+lib.web_mesh_attr_float_count.argtypes = [I, I]
+lib.web_mesh_attr_float_count.restype = I
+lib.web_mesh_attr_float_layer_ensure.argtypes = [I, I, C.c_char_p]
+lib.web_mesh_attr_float_layer_ensure.restype = I
+lib.web_mesh_attr_float_set.argtypes = [I, I, C.c_char_p, I, F]
+lib.web_mesh_attr_float_set.restype = I
+lib.web_mesh_attr_float_copy.argtypes = [I, I, C.c_char_p, C.POINTER(F), I]
+lib.web_mesh_attr_float_copy.restype = I
 lib.web_mesh_live_count.restype = I
 lib.web_mesh_memory_bytes.restype = I
 
@@ -202,6 +210,26 @@ def main():
     assert abs(normal[0]) < 1e-6 and abs(normal[1]) < 1e-6
     assert math.isclose(normal[2], 1.0, abs_tol=1e-6)
     assert lib.web_mesh_copy_face_normals(h, normal, 2) == -2
+    # Scalar attributes are stored in Blender CustomData, not a web-side dict.
+    domain_sizes = {1: 5, 2: 5, 3: 1, 4: 5}
+    for domain, count in domain_sizes.items():
+        assert lib.web_mesh_attr_float_count(h, domain) == count
+        assert lib.web_mesh_attr_float_layer_ensure(h, domain, b"weight") == 0
+        assert lib.web_mesh_attr_float_layer_ensure(h, domain, b"weight") == 0
+        assert lib.web_mesh_attr_float_set(h, domain, b"weight",
+                                            count - 1, F(domain / 8)) == 0
+        arr = (F * count)()
+        assert lib.web_mesh_attr_float_copy(h, domain, b"weight", arr, count) == count
+        assert arr[count - 1] == F(domain / 8).value
+        assert lib.web_mesh_attr_float_copy(h, domain, b"weight", arr, count - 1) == -2
+        assert lib.web_mesh_attr_float_set(h, domain, b"weight", count, F(2)) == -2
+        assert lib.web_mesh_attr_float_set(h, domain, b"weight", 0,
+                                           F(math.nan)) == -4
+        assert lib.web_mesh_attr_float_copy(h, domain, b"weight", arr, count) == count
+        assert arr[count - 1] == F(domain / 8).value
+    assert lib.web_mesh_attr_float_count(h, 7) == -4
+    assert lib.web_mesh_attr_float_layer_ensure(h, 5, b"weight") == -4
+    assert lib.web_mesh_attr_float_layer_ensure(h, 1, b"bad name") == -4
     assert lib.web_mesh_destroy(h) == 0
     assert lib.web_mesh_copy_face_normals(h, normal, 3) == -1
 
@@ -240,6 +268,7 @@ def main():
         "bounded_named_uv_layers": True,
         "independent_uv_domains": True,
         "source_backed_face_normals": True,
+        "original_customdata_float_four_domains": True,
         "extrusion_overflow_rejected_before_mutation": True,
         "invalid_geometry_rejected": True,
         "native_capacity_checked": 16,
