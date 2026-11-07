@@ -3082,6 +3082,13 @@ static BMOpDefine bmo_symmetrize_def = {
 #undef BM_EDGE
 #undef BM_VERT
 
+/* WebAssembly feasibility: keep only original delete/extrude operator
+ * registrations in a CPU-only probe. The native Blender registry below stays
+ * unchanged in all normal builds. This does not replace the BMesh algorithms.
+ */
+#if defined(BLENDER_WEB_MINIMAL_BMO)
+const BMOpDefine *bmo_opdefines[] = {&bmo_delete_def, &bmo_extrude_discrete_faces_def};
+#else
 const BMOpDefine *bmo_opdefines[] = {
     &bmo_average_vert_facedata_def,
     &bmo_beautify_fill_def,
@@ -3173,6 +3180,8 @@ const BMOpDefine *bmo_opdefines[] = {
     &bmo_weld_verts_def,
     &bmo_wireframe_def,
 };
+
+#endif  // BLENDER_WEB_MINIMAL_BMO
 
 const int bmo_opdefines_total = ARRAY_SIZE(bmo_opdefines);
 
