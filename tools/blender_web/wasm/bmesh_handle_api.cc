@@ -236,7 +236,10 @@ std::uint32_t web_mesh_api_capabilities()
   caps |= (1u << 4);
 #  endif
   // Original Blender polygon tessellation and corresponding per-corner mapping.
-  caps |= (1u << 5) | (1u << 6);
+  caps |= (1u << 5) | (1u << 6) | (1u << 8);
+#  if defined(BLENDER_WEB_NATIVE_UV)
+  caps |= (1u << 7);
+#  endif
   return caps;
 }
 
@@ -925,6 +928,40 @@ int web_mesh_validate_topology(int handle)
  * Return values: >=0 number of values written; -1 invalid handle;
  * -2 null/insufficient output buffer; -3 non-quad face or integer overflow.
  */
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Face-major Blender normals: the face cache is recomputed on demand because
+ * the thin vertex transform adapter intentionally bypasses depsgraph updates.
+ * This does not yet represent per-corner smooth/split normals.
+ */
+int web_mesh_face_normal_float_count(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (slot->mesh->totface > std::numeric_limits<int>::max() / 3) return -3;
+  return slot->mesh->totface * 3;
+}
+
+int web_mesh_copy_face_normals(int handle, float *out, int capacity)
+{
+  const int count = web_mesh_face_normal_float_count(handle);
+  if (count < 0) return count;
+  if (count == 0) return 0;
+  if (!out || capacity < count) return -2;
+  MeshSlot *slot = get_slot(handle);
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    blender::BM_face_normal_update(face);
+    for (int axis = 0; axis < 3; ++axis) {
+      if (!std::isfinite(face->no[axis])) return -3;
+      out[i++] = face->no[axis];
+    }
+  }
+  return i == count ? i : -3;
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
+
 int web_mesh_position_float_count(int handle)
 {
   MeshSlot *slot = get_slot(handle);
@@ -1131,6 +1168,102 @@ int web_mesh_copy_uvs(int handle, float *out, int float_capacity)
   }
   return n == count ? n : -4;
 }
+#if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+/* Avoid reading unbounded strings from a C/WASM caller. Blender's CustomData
+ * layer storage has a fixed name limit; use a deliberately restricted ASCII
+ * subset for predictable naming across hosts. No caller pointer is retained.
+ */
+static bool web_valid_uv_name(const char *name)
+{
+  if (!name) return false;
+  for (int i = 0; i < 64; ++i) {
+    const unsigned char c = static_cast<unsigned char>(name[i]);
+    if (c == 0) return i > 0;
+    if (!(c >= 'a' && c <= 'z') &&
+        !(c >= 'A' && c <= 'Z') &&
+        !(c >= '0' && c <= '9') && c != '_' && c != '-') return false;
+  }
+  return false;
+}
+
+int web_mesh_named_uv_layer_count(int handle)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  return blender::CustomData_number_of_layers(&slot->mesh->ldata, blender::CD_PROP_FLOAT2);
+}
+
+/* Maximum eight layers per mesh to bound BMesh CustomData reallocations. */
+int web_mesh_uv_layer_ensure_named(int handle, const char *name)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  blender::BMesh *bm = slot->mesh;
+  if (blender::CustomData_get_offset_named(&bm->ldata, blender::CD_PROP_FLOAT2, name) >= 0)
+    return 0;
+  if (blender::CustomData_number_of_layers(&bm->ldata, blender::CD_PROP_FLOAT2) >= 8)
+    return -5;
+  blender::BM_data_layer_add_named(bm, &bm->ldata, blender::CD_PROP_FLOAT2, name);
+  return blender::CustomData_get_offset_named(&bm->ldata, blender::CD_PROP_FLOAT2, name) >= 0 ?
+             0 : -2;
+}
+
+int web_mesh_set_uv_named(int handle, const char *name, int face_index,
+                          int corner_index, float u, float v)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  if (!std::isfinite(u) || !std::isfinite(v)) return -4;
+  blender::BMesh *bm = slot->mesh;
+  if (face_index < 0 || face_index >= bm->totface || corner_index < 0) return -2;
+  const int offset =
+      blender::CustomData_get_offset_named(&bm->ldata, blender::CD_PROP_FLOAT2, name);
+  if (offset < 0) return -3;
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, bm, blender::BM_FACES_OF_MESH) {
+    if (i++ != face_index) continue;
+    if (corner_index >= face->len) return -2;
+    blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+    for (int corner = 0; corner < corner_index; ++corner) loop = loop->next;
+    float (*uv)[2] = BM_ELEM_CD_GET_FLOAT2_P(loop, offset);
+    (*uv)[0] = u;
+    (*uv)[1] = v;
+    return 0;
+  }
+  return -2;
+}
+
+int web_mesh_copy_uvs_named(int handle, const char *name, float *out, int capacity)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (!web_valid_uv_name(name)) return -4;
+  blender::BMesh *bm = slot->mesh;
+  const int offset =
+      blender::CustomData_get_offset_named(&bm->ldata, blender::CD_PROP_FLOAT2, name);
+  if (offset < 0) return -3;
+  if (bm->totloop > std::numeric_limits<int>::max() / 2) return -3;
+  const int count = bm->totloop * 2;
+  if (count == 0) return 0;
+  if (!out || capacity < count) return -2;
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int n = 0;
+  BM_ITER_MESH (face, &iter, bm, blender::BM_FACES_OF_MESH) {
+    blender::BMLoop *loop = BM_FACE_FIRST_LOOP(face);
+    for (int corner = 0; corner < face->len; ++corner, loop = loop->next) {
+      const float (*uv)[2] = BM_ELEM_CD_GET_FLOAT2_P(loop, offset);
+      out[n++] = (*uv)[0];
+      out[n++] = (*uv)[1];
+    }
+  }
+  return n == count ? n : -3;
+}
+#endif  // BLENDER_WEB_NATIVE_CORE_ABI
 #endif  // BLENDER_WEB_NATIVE_UV
 
 int web_mesh_live_count()
