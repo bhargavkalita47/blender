@@ -13,6 +13,9 @@
 #  include "BKE_customdata.hh"
 #  include "DNA_customdata_types.h"
 #endif
+#if defined(BLENDER_WEB_NATIVE_BEVEL)
+#  include "DNA_modifier_types.h"
+#endif
 #include "bmesh.hh"
 
 #include <cstdint>
@@ -237,6 +240,9 @@ std::uint32_t web_mesh_api_capabilities()
 #  endif
   // Original Blender polygon tessellation and corresponding per-corner mapping.
   caps |= (1u << 5) | (1u << 6) | (1u << 8) | (1u << 9);
+#  if defined(BLENDER_WEB_NATIVE_BEVEL)
+  caps |= (1u << 11);
+#  endif
 #  if defined(BLENDER_WEB_NATIVE_UV)
   caps |= (1u << 7) | (1u << 10);
 #  endif
@@ -682,6 +688,61 @@ int web_mesh_inset_face(int handle, int index, float thickness)
 #endif
 
 #if defined(BLENDER_WEB_NATIVE_CORE_ABI)
+#if defined(BLENDER_WEB_NATIVE_BEVEL)
+/* Deliberately bounded one-edge original BMO bevel, to keep dependency
+ * closure and geometry lifetime measurable before exposing multi-edge tools.
+ * Negative/overflow offset is rejected BEFORE invoking the operator.
+ */
+int web_mesh_bevel_edge(int handle, int edge_index, float offset, int segments)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  blender::BMesh *bm = slot->mesh;
+  if (edge_index < 0 || edge_index >= bm->totedge ||
+      !std::isfinite(offset) || offset <= 0.0f || offset > .45f ||
+      segments < 1 || segments > 4) return -2;
+
+  blender::BMIter iter;
+  blender::BMEdge *edge = nullptr;
+  int i = 0;
+  BM_ITER_MESH (edge, &iter, bm, blender::BM_EDGES_OF_MESH) {
+    if (i++ != edge_index) continue;
+    if (!blender::BM_edge_is_manifold(edge)) return -4;
+    // BMO bevel requires valid face normals even when the geometry is
+    // constructed through BMesh intern constructors without depsgraph.
+    blender::BMIter fiter;
+    blender::BMFace *face = nullptr;
+    BM_ITER_MESH (face, &fiter, bm, blender::BM_FACES_OF_MESH) {
+      blender::BM_face_normal_update(face);
+    }
+    const int before_vert = bm->totvert;
+    const int before_face = bm->totface;
+    blender::BMOperator op;
+    blender::BMO_op_init(bm, &op, blender::BMO_FLAG_DEFAULTS, "bevel");
+    blender::BMO_slot_buffer_from_single(
+        &op, blender::BMO_slot_get(op.slots_in, "geom"), &edge->head);
+    blender::BMO_slot_float_set(op.slots_in, "offset", offset);
+    blender::BMO_slot_int_set(op.slots_in, "offset_type", BEVEL_AMT_OFFSET);
+    blender::BMO_slot_int_set(op.slots_in, "profile_type", BEVEL_PROFILE_SUPERELLIPSE);
+    blender::BMO_slot_int_set(op.slots_in, "segments", segments);
+    blender::BMO_slot_float_set(op.slots_in, "profile", .5f);
+    blender::BMO_slot_int_set(op.slots_in, "affect", BEVEL_AFFECT_EDGES);
+    blender::BMO_slot_bool_set(op.slots_in, "clamp_overlap", true);
+    blender::BMO_slot_int_set(op.slots_in, "material", -1);
+    blender::BMO_slot_bool_set(op.slots_in, "loop_slide", true);
+    blender::BMO_slot_int_set(op.slots_in, "face_strength_mode", BEVEL_FACE_STRENGTH_NONE);
+    blender::BMO_slot_int_set(op.slots_in, "miter_outer", BEVEL_MITER_SHARP);
+    blender::BMO_slot_int_set(op.slots_in, "miter_inner", BEVEL_MITER_SHARP);
+    blender::BMO_slot_int_set(op.slots_in, "vmesh_method", BEVEL_VMESH_ADJ);
+    slot->top_face = nullptr; // Bevel invalidates prior convenience face ptr.
+    blender::BMO_op_exec(bm, &op);
+    blender::BMO_op_finish(bm, &op);
+    return bm->totvert > before_vert && bm->totface > before_face ? 0 : -3;
+  }
+  return -2;
+}
+#endif  // BLENDER_WEB_NATIVE_BEVEL
+
 /* Limited, original-Blender dissolve and edge merge on one planar polygon.
  * Element indices refer to the CURRENT BMesh iteration snapshot only.
  * No generalized manifold or multi-face collapse is offered yet.
