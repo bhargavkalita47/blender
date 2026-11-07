@@ -58,6 +58,17 @@ def main():
     compare_positions("inset_plane",inset_original["positions"],inset_extracted["positions"])
     assert extracted["original_blender_bmo_inset"] is True
     passed["inset_plane"]={key:inset_original[key] for key in COUNTS}
+    extrude_original=original["shapes"]["extruded_plane"]
+    extrude_extracted=extracted["extruded_plane"]
+    for key in COUNTS:
+        assert extrude_original[key] == extrude_extracted[key], (
+            "Blender general BMO extrusion mismatch: "+key)
+    compare_positions("extruded_plane",extrude_original["positions"],
+                      extrude_extracted["positions"])
+    assert extracted["general_face_extrusion"] is True
+    assert extracted["edge_face_selection"] is True
+    assert extracted["vertex_edge_face_deletion"] is True
+    passed["extruded_plane"]={key:extrude_original[key] for key in COUNTS}
     assert extracted["vertex_selection_transforms"]
     assert extracted["face_deletion"]
     assert extracted["multi_mesh_independence"]
@@ -71,6 +82,7 @@ def main():
             "selection_transform_and_delete_smoke":True,
             "original_blender_poke_parity":True,
             "original_blender_inset_parity":True,
+            "original_blender_general_face_extrusion_parity":True,
             "native_primitive_cycles":extracted["new_primitive_lifecycle_cycles"],
             "native_no_net_tracked_allocation":True,
             "does_not_verify":"inset/bevel/subdivide operator parity, materials or UVs"}
