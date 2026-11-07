@@ -17,8 +17,12 @@ if(BLENDER_WEB_SANITIZE)
   if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     message(FATAL_ERROR "Sanitizers require GCC or Clang")
   endif()
-  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer -O1)
-  add_link_options(-fsanitize=address,undefined)
+  # Blender's BMesh iterator jump table deliberately erases function pointer
+  # signatures; Clang's UBSan function-type checker diagnoses those valid
+  # dispatches as incompatible. Keep ASan + the other UBSan checks enabled.
+  add_compile_options(-fsanitize=address,undefined -fno-sanitize=function
+                      -fno-omit-frame-pointer -O1)
+  add_link_options(-fsanitize=address,undefined -fno-sanitize=function)
 endif()
 
 get_filename_component(BLENDER_WEB_SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
