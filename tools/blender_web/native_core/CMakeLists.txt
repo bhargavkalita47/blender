@@ -174,6 +174,11 @@ target_include_directories(blender_web_native_contract PRIVATE
   "${CMAKE_CURRENT_LIST_DIR}")
 target_link_libraries(blender_web_native_contract PRIVATE blender_web_native_core)
 target_compile_options(blender_web_native_contract PRIVATE -UNDEBUG)
+if(BLENDER_WEB_SANITIZE)
+  # This is still compiled as plain C, but Clang's C++ UBSan vptr runtime
+  # is required by the instrumented Blender C++ DSO at final executable link.
+  set_target_properties(blender_web_native_contract PROPERTIES LINKER_LANGUAGE CXX)
+endif()
 add_test(NAME blender_web_native_contract COMMAND blender_web_native_contract)
 set_tests_properties(blender_web_native_contract PROPERTIES TIMEOUT 45)
 
