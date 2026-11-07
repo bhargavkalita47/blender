@@ -66,6 +66,16 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/task_scheduler.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/math_geom.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/threads.cc
+  # Original Blender providers required by expanded BMO inset/subdivide:
+  # UTF-8 names, Blender translation (internationalization disabled in
+  # this isolated target), BLI RNG/stack, and legacy procedural noise.
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string_ref.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string_utf8.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string_utils.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/rand.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/stack.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/noise_c.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blentranslation/intern/blt_translation.cc
   ${BLENDER_WEB_SOURCE_ROOT}/tools/blender_web/wasm/bmesh_handle_api.cc
 )
 set(BLENDER_WEB_NATIVE_INCLUDES
@@ -135,6 +145,6 @@ enable_testing()
 add_test(NAME blender_web_native_bmesh COMMAND blender_web_native_smoke)
 set_tests_properties(blender_web_native_bmesh PROPERTIES TIMEOUT 45)
 
-message(STATUS "Blender Web native-core experimental source count: 47")
+message(STATUS "Blender Web native-core experimental source count: 54")
 message(STATUS "Original Blender source root: ${BLENDER_WEB_SOURCE_ROOT}")
 message(STATUS "This standalone CMake project does NOT run the upstream Blender CMake configuration")
