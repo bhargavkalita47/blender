@@ -66,6 +66,9 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_inset.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/intern/bmesh_mods.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_subdivide.cc
+  # Experimental original source-backed bevel operator and high-level BMesh kernel.
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_bevel.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/tools/bmesh_bevel.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_assert.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_ghash.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string.cc
@@ -140,7 +143,7 @@ set_source_files_properties(
 target_include_directories(blender_web_native_core PRIVATE
   ${BLENDER_WEB_NATIVE_INCLUDES} ${FMT_INCLUDE_DIR})
 target_compile_definitions(blender_web_native_core PRIVATE
-  NDEBUG FMT_HEADER_ONLY BLENDER_WEB_MINIMAL_BMO BLENDER_WEB_NATIVE_POKE BLENDER_WEB_NATIVE_INSET BLENDER_WEB_NATIVE_SUBDIVIDE BLENDER_WEB_NATIVE_UV BLENDER_WEB_NATIVE_CORE_ABI)
+  NDEBUG FMT_HEADER_ONLY BLENDER_WEB_MINIMAL_BMO BLENDER_WEB_NATIVE_POKE BLENDER_WEB_NATIVE_INSET BLENDER_WEB_NATIVE_SUBDIVIDE BLENDER_WEB_NATIVE_UV BLENDER_WEB_NATIVE_CORE_ABI BLENDER_WEB_NATIVE_BEVEL)
 # Required by existing Blender bit-7 flag enums in the current source build.
 # DNA serialization semantics must be validated before general native parity.
 target_compile_options(blender_web_native_core PRIVATE
@@ -184,6 +187,6 @@ set_tests_properties(blender_web_native_contract PROPERTIES TIMEOUT 45)
 
 set_tests_properties(blender_web_native_bmesh PROPERTIES TIMEOUT 45)
 
-message(STATUS "Blender Web native-core experimental source count: 56")
+message(STATUS "Blender Web native-core experimental source count: 58")
 message(STATUS "Original Blender source root: ${BLENDER_WEB_SOURCE_ROOT}")
 message(STATUS "This standalone CMake project does NOT run the upstream Blender CMake configuration")
