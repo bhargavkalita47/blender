@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 1.3.1 BLI to WASM smoke test
+
+on:
+  push:
+    branches:
+      - dev/p1-feasibility
+  pull_request:
+    branches:
+      - blender-for-web
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bli-wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out pinned Blender BLI source and test harness
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            source/blender/blenlib
+            tools/blender_web/wasm
+          sparse-checkout-cone-mode: false
+
+      - name: Install pinned Emscripten 4.0.12
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install 4.0.12
+          "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.12
+
+      - name: Compile actual Blender BLI source and execute in Node
+        shell: bash
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          bash tools/blender_web/wasm/build-bli-smoke.sh
+          node tools/blender_web/wasm/verify-bli-smoke.mjs build/blender_web/wasm
+          em++ --version | head -1 > build/blender_web/wasm/compiler.txt
+          sha256sum build/blender_web/wasm/bli_smoke.wasm > build/blender_web/wasm/wasm.sha256
+
+      - name: Upload reproducible WASM proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-p1-3-1-bli-wasm
+          path: |
+            build/blender_web/wasm/bli_smoke.mjs
+            build/blender_web/wasm/bli_smoke.wasm
+            build/blender_web/wasm/compiler.txt
+            build/blender_web/wasm/wasm.sha256
+          if-no-files-found: error
+          retention-days: 30
