@@ -57,6 +57,41 @@ jobs:
           source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
           bash tools/blender_web/wasm/build-bmesh-objects.sh
 
+      - name: Enforce complete Phase 1.3.2 success criteria
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("build/blender_web/bmesh_wasm")
+          required = {
+              "lifecycle-expanded-status.json": {"link_success": True, "runtime_success": True},
+              "cube-probe-status.json": {"link_success": True, "runtime_success": True},
+              "extrude-probe-status.json": {"link_success": True, "runtime_success": True},
+              "handle-api-status.json": {"link_success": True, "runtime_success": True},
+          }
+          problems = []
+          build = json.loads((root / "status.json").read_text())
+          if build.get("failed") or build.get("compiled", 0) < 5:
+              problems.append(f"BMesh source compilation: {build}")
+          for filename, expected in required.items():
+              path = root / filename
+              if not path.exists():
+                  problems.append(f"Missing acceptance evidence: {filename}")
+                  continue
+              got = json.loads(path.read_text())
+              for field, value in expected.items():
+                  if got.get(field) != value:
+                      problems.append(f"{filename}.{field}: expected {value}, got {got.get(field)}")
+              print(filename, got)
+          if problems:
+              print("Phase 1.3.2 INCOMPLETE:")
+              for item in problems:
+                  print("  -", item)
+              raise SystemExit(1)
+          print("Phase 1.3.2: verified real BMesh create, cube, BMO extrude, free and handles")
+          PY
+
       - name: Upload BMesh compilation evidence
         uses: actions/upload-artifact@v4
         if: always()
@@ -83,5 +118,9 @@ jobs:
             build/blender_web/bmesh_wasm/extrude-probe-status.json
             build/blender_web/bmesh_wasm/bmesh-lifecycle-run.log
             build/blender_web/bmesh_wasm/bmesh-extrude-run.log
+            build/blender_web/bmesh_wasm/handle-api-status.json
+            build/blender_web/bmesh_wasm/bmesh-handles-run.log
+            build/blender_web/bmesh_wasm/bmesh_handles.wasm
+            build/blender_web/bmesh_wasm/bmesh_handles.mjs
           if-no-files-found: warn
           retention-days: 30
