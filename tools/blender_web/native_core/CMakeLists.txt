@@ -69,6 +69,12 @@ set(BLENDER_WEB_NATIVE_SOURCES
   # Experimental original source-backed bevel operator and high-level BMesh kernel.
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/operators/bmo_bevel.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/bmesh/tools/bmesh_bevel.cc
+  # Original Blender providers required by the bevel solver and profile.
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_linklist.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/deform.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/curveprofile.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/intern/eigen/intern/linear_solver.cc
+  ${BLENDER_WEB_SOURCE_ROOT}/intern/eigen/intern/matrix.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_assert.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_ghash.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/string.cc
@@ -129,6 +135,7 @@ set(BLENDER_WEB_NATIVE_INCLUDES
 # FMT_HEADER_ONLY allows the original BLI dependency to use native fmt headers
 # without linking the full Blender external dependency bundle.
 find_path(FMT_INCLUDE_DIR fmt/format.h REQUIRED)
+find_path(EIGEN3_INCLUDE_DIR Eigen/Core PATHS /usr/include/eigen3 REQUIRED)
 find_package(Threads REQUIRED)
 
 add_library(blender_web_native_core SHARED ${BLENDER_WEB_NATIVE_SOURCES})
@@ -141,7 +148,7 @@ set_source_files_properties(
   "${BLENDER_WEB_SOURCE_ROOT}/tools/blender_web/wasm/bmesh_handle_api.cc"
   PROPERTIES COMPILE_OPTIONS "-fvisibility=default")
 target_include_directories(blender_web_native_core PRIVATE
-  ${BLENDER_WEB_NATIVE_INCLUDES} ${FMT_INCLUDE_DIR})
+  ${BLENDER_WEB_NATIVE_INCLUDES} ${FMT_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR})
 target_compile_definitions(blender_web_native_core PRIVATE
   NDEBUG FMT_HEADER_ONLY BLENDER_WEB_MINIMAL_BMO BLENDER_WEB_NATIVE_POKE BLENDER_WEB_NATIVE_INSET BLENDER_WEB_NATIVE_SUBDIVIDE BLENDER_WEB_NATIVE_UV BLENDER_WEB_NATIVE_CORE_ABI BLENDER_WEB_NATIVE_BEVEL)
 # Required by existing Blender bit-7 flag enums in the current source build.
@@ -187,6 +194,6 @@ set_tests_properties(blender_web_native_contract PROPERTIES TIMEOUT 45)
 
 set_tests_properties(blender_web_native_bmesh PROPERTIES TIMEOUT 45)
 
-message(STATUS "Blender Web native-core experimental source count: 58")
+message(STATUS "Blender Web native-core experimental source count: 63")
 message(STATUS "Original Blender source root: ${BLENDER_WEB_SOURCE_ROOT}")
 message(STATUS "This standalone CMake project does NOT run the upstream Blender CMake configuration")
