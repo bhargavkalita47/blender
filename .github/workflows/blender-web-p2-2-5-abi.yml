@@ -7,6 +7,7 @@ on:
     branches:
       - dev/p2-api-consolidation
       - dev/p2-2-completion
+      - dev/p2-bevel-native
   pull_request:
     branches:
       - dev/p2-uv-attributes
