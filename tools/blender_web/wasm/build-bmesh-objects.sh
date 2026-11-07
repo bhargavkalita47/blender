@@ -275,3 +275,30 @@ else
   grep 'error:' "$OUT/bmesh-cube-link.log" | grep -v 'undefined symbol:' | head -20 || true
 fi
 echo "::endgroup::"
+
+
+echo "::group::Diagnostic: original Blender BMO discrete-face extrusion via WASM"
+if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+    "$OUT/bmesh_mesh_lifecycle.o" \
+    "$OUT/bmesh_structure.cc.o" "$OUT/bmesh_core.cc.o" \
+    "$OUT/bmesh_construct.cc.o" "$OUT/bmesh_query.cc.o" \
+    "${SUPPORT_OBJECTS[@]}" \
+    "$ROOT/tools/blender_web/wasm/bmesh_extrude_probe.cc" \
+    -Wl,--gc-sections -Wl,--error-limit=0 \
+    -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
+    -sERROR_ON_UNDEFINED_SYMBOLS=1 \
+    -sEXPORTED_FUNCTIONS='["_web_bmesh_extrude_cube_once","_web_bmesh_extrude_cube_stress"]' \
+    -o "$OUT/bmesh_extrude.mjs" > "$OUT/bmesh-extrude-link.log" 2>&1; then
+  if node "$ROOT/tools/blender_web/wasm/verify-bmesh-extrude.mjs" "$OUT" > "$OUT/bmesh-extrude-run.log" 2>&1; then
+    echo '{"link_success":true,"runtime_success":true,"stress_iterations":100}' > "$OUT/extrude-probe-status.json"
+    cat "$OUT/bmesh-extrude-run.log"
+  else
+    echo '{"link_success":true,"runtime_success":false}' > "$OUT/extrude-probe-status.json"
+    cat "$OUT/bmesh-extrude-run.log"
+  fi
+else
+  echo '{"link_success":false,"runtime_success":false}' > "$OUT/extrude-probe-status.json"
+  grep 'undefined symbol:' "$OUT/bmesh-extrude-link.log" | sed 's/^.*undefined symbol: //' | sort -u | head -100 || true
+  grep -E 'error:|fatal error:' "$OUT/bmesh-extrude-link.log" | grep -v 'undefined symbol:' | head -25 || true
+fi
+echo "::endgroup::"
