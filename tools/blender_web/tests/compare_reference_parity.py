@@ -23,7 +23,12 @@ def read_tag(path, tag):
     lines = pathlib.Path(path).read_text(errors="replace").splitlines()
     found = [line.split(tag, 1)[1] for line in lines if tag in line]
     assert len(found) == 1, f"Expected one {tag} line in {path}, got {len(found)}"
-    return json.loads(found[0])
+    # Blender prints its process banner directly after the Python script's
+    # final stdout line on some headless builds (no separating newline).
+    # Decode exactly one JSON value; do not mistake the Blender banner for
+    # a second JSON document or a geometry failure.
+    result, _ = json.JSONDecoder().raw_decode(found[0])
+    return result
 
 
 def close(a, b, where, eps=EPS):
