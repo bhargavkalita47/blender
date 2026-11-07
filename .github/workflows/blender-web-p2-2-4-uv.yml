@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: 2026 Blender for Web contributors
+# SPDX-License-Identifier: GPL-2.0-or-later
+name: Blender Web - Phase 2.2.4 UV parity (experimental)
+
+on:
+  push:
+    branches:
+      - dev/p2-uv-attributes
+  pull_request:
+    branches:
+      - dev/p2-modeling-ops
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-uv-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            source/blender
+            intern
+            extern
+            tools/blender_web
+          sparse-checkout-cone-mode: false
+      - name: Install original-source native and reference requirements
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang ninja-build libfmt-dev binutils \
+            libx11-6 libxi6 libxrender1 libxkbcommon0 libegl1 libopengl0 \
+            libgl1 libglib2.0-0 libsm6 libxext6
+      - name: Syntax-check UV scripts
+        run: |
+          python3 -m py_compile \
+            tools/blender_web/tests/verify_uv_attributes.py \
+            tools/blender_web/tests/uv_reference.py \
+            tools/blender_web/tests/compare_uv_reference.py
+      - name: Build true Blender-native UV-capable BMesh extraction
+        run: |
+          cmake -S tools/blender_web/native_core \
+            -B build/blender_web/native_core -G Ninja \
+            -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/blender_web/native_core --parallel 4
+          ctest --test-dir build/blender_web/native_core --output-on-failure
+          python3 tools/blender_web/native_core/verify_build_isolation.py \
+            build/blender_web/native_core
+      - name: Exercise real BMLoop UV CustomData and memory lifetime
+        run: |
+          set -o pipefail
+          mkdir -p build/blender_web
+          python3 tools/blender_web/tests/verify_uv_attributes.py \
+            build/blender_web/native_core/libblender_web_native_core.so \
+            | tee build/blender_web/uv-native.log
+      - name: Fetch exact Blender 5.4 Alpha official reference
+        run: |
+          python3 tools/blender_web/tests/download_pinned_reference.py \
+            build/blender_web/pinned_reference
+      - name: Capture pinned native Blender UV BMesh values
+        run: |
+          set -o pipefail
+          BLENDER_BIN="$(cat build/blender_web/pinned_reference/blender_path.txt)"
+          "$BLENDER_BIN" --background --factory-startup --disable-autoexec \
+            --python-exit-code 1 \
+            --python tools/blender_web/tests/uv_reference.py \
+            2>&1 | tee build/blender_web/uv-original.log
+      - name: Enforce UV value and exact-source parity
+        run: |
+          python3 tools/blender_web/tests/compare_uv_reference.py \
+            build/blender_web/uv-original.log \
+            build/blender_web/uv-native.log \
+            build/blender_web/uv-parity.json
+      - name: Upload evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-web-phase-2-2-4-uv-evidence
+          path: |
+            build/blender_web/uv-*.log
+            build/blender_web/uv-parity.json
+            build/blender_web/native_core/isolation-report.json
+            build/blender_web/native_core/Testing/Temporary/LastTest.log
+            build/blender_web/pinned_reference/reference_provenance.json
+          if-no-files-found: warn
+          retention-days: 30
