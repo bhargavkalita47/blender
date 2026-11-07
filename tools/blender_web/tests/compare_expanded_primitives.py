@@ -50,6 +50,14 @@ def main():
     compare_positions("poked_plane",poke_original["positions"],poke_extracted["positions"])
     assert extracted["original_blender_bmo_poke"] is True
     passed["poked_plane"]={key:poke_original[key] for key in COUNTS}
+    inset_original=original["shapes"]["inset_plane"]
+    inset_extracted=extracted["inset_plane"]
+    for key in COUNTS:
+        assert inset_original[key] == inset_extracted[key], (
+            "Blender BMO inset mismatch: "+key)
+    compare_positions("inset_plane",inset_original["positions"],inset_extracted["positions"])
+    assert extracted["original_blender_bmo_inset"] is True
+    passed["inset_plane"]={key:inset_original[key] for key in COUNTS}
     assert extracted["vertex_selection_transforms"]
     assert extracted["face_deletion"]
     assert extracted["multi_mesh_independence"]
@@ -62,6 +70,7 @@ def main():
             "original_blender_element_constructors":True,
             "selection_transform_and_delete_smoke":True,
             "original_blender_poke_parity":True,
+            "original_blender_inset_parity":True,
             "native_primitive_cycles":extracted["new_primitive_lifecycle_cycles"],
             "native_no_net_tracked_allocation":True,
             "does_not_verify":"inset/bevel/subdivide operator parity, materials or UVs"}
