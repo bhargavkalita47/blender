@@ -157,30 +157,30 @@ echo "::endgroup::"
 # BMesh marking has a separate wasm32 enum-char narrowing problem to address
 # when selection/extended editing is part of the chosen runtime closure.
 
-if (( support_failed == 0 )); then
-  echo "::group::Diagnostic: attempt genuine BM_mesh_create/free linkage with Blender support sources"
-  em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
-    -c "$ROOT/source/blender/bmesh/intern/bmesh_mesh.cc" \
-    -o "$OUT/bmesh_mesh_lifecycle.o" > "$OUT/lifecycle-mesh-compile.log" 2>&1
-  if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
-      "$OUT/bmesh_mesh_lifecycle.o" "${SUPPORT_OBJECTS[@]}" \
-      "$ROOT/tools/blender_web/wasm/bmesh_lifecycle_probe.cc" \
-      -Wl,--gc-sections -Wl,--error-limit=0 \
-      -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
-      -sERROR_ON_UNDEFINED_SYMBOLS=1 \
-      -sEXPORTED_FUNCTIONS='["_web_bmesh_lifecycle_probe"]' \
-      -o "$OUT/bmesh_lifecycle_full.mjs" > "$OUT/lifecycle-full-link.log" 2>&1; then
-    echo '{"compile_support_failures":0,"link_success":true}' > "$OUT/lifecycle-expanded-status.json"
-    echo "All candidate support sources linked for BM_mesh_create/free; needs execution validation."
-  else
-    echo '{"compile_support_failures":0,"link_success":false}' > "$OUT/lifecycle-expanded-status.json"
-    grep -E "undefined symbol:|error:" "$OUT/lifecycle-full-link.log" | head -40 || true
-  fi
-  echo "::endgroup::"
+echo "::group::Diagnostic: attempt genuine BM_mesh_create/free linkage"
+# Compile this source independently of whether all optional providers compile.
+# Both the full lifecycle probe and the narrower allocation probe consume it.
+em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+  -c "$ROOT/source/blender/bmesh/intern/bmesh_mesh.cc" \
+  -o "$OUT/bmesh_mesh_lifecycle.o" > "$OUT/lifecycle-mesh-compile.log" 2>&1 || {
+    cat "$OUT/lifecycle-mesh-compile.log"
+    exit 1
+  }
+if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+    "$OUT/bmesh_mesh_lifecycle.o" "${SUPPORT_OBJECTS[@]}" \
+    "$ROOT/tools/blender_web/wasm/bmesh_lifecycle_probe.cc" \
+    -Wl,--gc-sections -Wl,--error-limit=0 \
+    -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
+    -sERROR_ON_UNDEFINED_SYMBOLS=1 \
+    -sEXPORTED_FUNCTIONS='["_web_bmesh_lifecycle_probe"]' \
+    -o "$OUT/bmesh_lifecycle_full.mjs" > "$OUT/lifecycle-full-link.log" 2>&1; then
+  printf '{"compile_support_failures":%d,"link_success":true}\n' "$support_failed" > "$OUT/lifecycle-expanded-status.json"
+  echo "BM_mesh_create/free link succeeded (runtime test still required)."
 else
-  printf '{"compile_support_failures":%d,"link_attempted":false}\n' "$support_failed" > "$OUT/lifecycle-expanded-status.json"
-  echo "Unable to run expanded link: some original support files are not yet compile-ready."
+  printf '{"compile_support_failures":%d,"link_success":false}\n' "$support_failed" > "$OUT/lifecycle-expanded-status.json"
+  grep "undefined symbol:" "$OUT/lifecycle-full-link.log" | sed 's/^.*undefined symbol: //' | sort -u | head -75 || true
 fi
+echo "::endgroup::"
 
 # Second escalation: isolate BM_mesh_create alone. Uses original Blender
 # allocator/BLI/BKE implementations and GC-sections to eliminate unreferenced
