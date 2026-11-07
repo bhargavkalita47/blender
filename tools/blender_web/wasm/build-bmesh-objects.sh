@@ -34,6 +34,8 @@ INC=(
   intern/guardedalloc
   intern/clog
   intern/atomic
+  intern/profile
+  intern/guardedalloc/intern
   intern/eigen
   extern/rangetree
 )
@@ -110,3 +112,61 @@ else
     grep -E "(undefined symbol:|error:|wasm-ld:)" "$OUT/bmesh-lifecycle-link.log" | head -70 || true
 fi
 echo "::endgroup::"
+
+# Escalation experiment: use REAL Blender implementations of allocator,
+# BLI mempool, BKE CustomData, and BMesh iteration. A successful compilation
+# does not mean that all linker symbols or runtime semantics are resolved.
+echo "::group::Diagnostic: compile Blender-owned allocation and CustomData sources"
+SUPPORT=(
+  intern/guardedalloc/intern/mallocn.cc
+  intern/guardedalloc/intern/mallocn_lockfree_impl.cc
+  intern/guardedalloc/intern/mallocn_guarded_impl.cc
+  intern/guardedalloc/intern/memory_usage.cc
+  intern/guardedalloc/intern/leak_detector.cc
+  source/blender/blenlib/intern/BLI_mempool.cc
+  source/blender/blenkernel/intern/customdata.cc
+  source/blender/bmesh/intern/bmesh_iterators.cc
+  source/blender/bmesh/intern/bmesh_operators.cc
+  source/blender/bmesh/intern/bmesh_marking.cc
+)
+SUPPORT_OBJECTS=()
+support_failed=0
+for src in "${SUPPORT[@]}"; do
+  base="${src##*/}"
+  file="$OUT/dep_$base.o"
+  if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+       -c "$ROOT/$src" -o "$file" > "$OUT/dep_$base.log" 2>&1; then
+    echo "PASS: $src"
+    SUPPORT_OBJECTS+=("$file")
+  else
+    echo "FAIL: $src (inspect uploaded dep_$base.log)"
+    grep -E "fatal error:|error:" "$OUT/dep_$base.log" | head -10 || true
+    support_failed=$((support_failed + 1))
+  fi
+done
+echo "::endgroup::"
+
+if (( support_failed == 0 )); then
+  echo "::group::Diagnostic: attempt genuine BM_mesh_create/free linkage with Blender support sources"
+  em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+    -c "$ROOT/source/blender/bmesh/intern/bmesh_mesh.cc" \
+    -o "$OUT/bmesh_mesh_lifecycle.o" > "$OUT/lifecycle-mesh-compile.log" 2>&1
+  if em++ "${FLAGS[@]}" -O2 -ffunction-sections -fdata-sections \
+      "$OUT/bmesh_mesh_lifecycle.o" "${SUPPORT_OBJECTS[@]}" \
+      "$ROOT/tools/blender_web/wasm/bmesh_lifecycle_probe.cc" \
+      -Wl,--gc-sections -Wl,--error-limit=0 \
+      -sWASM=1 -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=node \
+      -sERROR_ON_UNDEFINED_SYMBOLS=1 \
+      -sEXPORTED_FUNCTIONS='["_web_bmesh_lifecycle_probe"]' \
+      -o "$OUT/bmesh_lifecycle_full.mjs" > "$OUT/lifecycle-full-link.log" 2>&1; then
+    echo '{"compile_support_failures":0,"link_success":true}' > "$OUT/lifecycle-expanded-status.json"
+    echo "All candidate support sources linked for BM_mesh_create/free; needs execution validation."
+  else
+    echo '{"compile_support_failures":0,"link_success":false}' > "$OUT/lifecycle-expanded-status.json"
+    grep -E "undefined symbol:|error:" "$OUT/lifecycle-full-link.log" | head -40 || true
+  fi
+  echo "::endgroup::"
+else
+  printf '{"compile_support_failures":%d,"link_attempted":false}\n' "$support_failed" > "$OUT/lifecycle-expanded-status.json"
+  echo "Unable to run expanded link: some original support files are not yet compile-ready."
+fi
