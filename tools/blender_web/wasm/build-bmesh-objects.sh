@@ -124,6 +124,7 @@ SUPPORT=(
   intern/guardedalloc/intern/mallocn_guarded_impl.cc
   intern/guardedalloc/intern/memory_usage.cc
   intern/guardedalloc/intern/leak_detector.cc
+  intern/clog/clog.cc
   source/blender/blenlib/intern/BLI_mempool.cc
   source/blender/blenkernel/intern/customdata.cc
   source/blender/bmesh/intern/bmesh_iterators.cc
@@ -184,6 +185,8 @@ if [[ -f "$OUT/dep_customdata.cc.o" ]]; then
     "$OUT/bmesh_mesh_lifecycle.o" \
     "$OUT/dep_mallocn.cc.o" \
     "$OUT/dep_mallocn_lockfree_impl.cc.o" \
+    "$OUT/dep_memory_usage.cc.o" \
+    "$OUT/dep_clog.cc.o" \
     "$OUT/dep_BLI_mempool.cc.o" \
     "$OUT/dep_customdata.cc.o" \
     "$ROOT/tools/blender_web/wasm/bmesh_allocation_probe.cc" \
