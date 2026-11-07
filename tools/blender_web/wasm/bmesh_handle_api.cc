@@ -438,6 +438,39 @@ int web_mesh_poke_face(int handle, int index)
 }
 #endif
 
+#if defined(BLENDER_WEB_NATIVE_INSET)
+int web_mesh_inset_face(int handle, int index, float thickness)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (index < 0 || index >= slot->mesh->totface ||
+      !std::isfinite(thickness) || thickness <= 0.0f || thickness >= 0.5f)
+    return -2;
+  blender::BMIter iter;
+  blender::BMFace *face = nullptr;
+  int i = 0;
+  BM_ITER_MESH (face, &iter, slot->mesh, blender::BM_FACES_OF_MESH) {
+    if (i++ != index) continue;
+    if (face->len != 4) return -4;
+    const int old_faces = slot->mesh->totface;
+    const int old_verts = slot->mesh->totvert;
+    blender::BMOperator op;
+    blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "inset_individual");
+    blender::BMO_slot_buffer_from_single(
+        &op, blender::BMO_slot_get(op.slots_in, "faces"), &face->head);
+    blender::BMO_slot_float_set(op.slots_in, "thickness", thickness);
+    blender::BMO_slot_float_set(op.slots_in, "depth", 0.0f);
+    blender::BMO_slot_bool_set(op.slots_in, "use_even_offset", true);
+    slot->top_face = nullptr;
+    blender::BMO_op_exec(slot->mesh, &op);
+    blender::BMO_op_finish(slot->mesh, &op);
+    return slot->mesh->totface == old_faces + 4 &&
+                   slot->mesh->totvert == old_verts + 4 ? 0 : -3;
+  }
+  return -3;
+}
+#endif
+
 int web_mesh_delete_face(int handle, int index)
 {
   MeshSlot *slot = get_slot(handle);
