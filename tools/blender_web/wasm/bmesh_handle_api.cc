@@ -354,6 +354,28 @@ int web_mesh_select_vertex(int handle, int index, int selected)
 }
 
 int web_mesh_selected_vert_count(int handle);
+#if defined(BLENDER_WEB_NATIVE_SUBDIVIDE)
+int web_mesh_subdivide_all_edges(int handle, int cuts)
+{
+  MeshSlot *slot = get_slot(handle);
+  if (!slot) return -1;
+  if (cuts < 1 || cuts > 2 || slot->mesh->totedge > 2048 ||
+      slot->mesh->totedge <= 0) return -2;
+  const int before_verts = slot->mesh->totvert;
+  blender::BMOperator op;
+  blender::BMO_op_init(slot->mesh, &op, blender::BMO_FLAG_DEFAULTS, "subdivide_edges");
+  blender::BMO_slot_buffer_from_all(
+      slot->mesh, &op, op.slots_in, "edges", blender::BM_EDGE);
+  blender::BMO_slot_int_set(op.slots_in, "cuts", cuts);
+  blender::BMO_slot_bool_set(op.slots_in, "use_grid_fill", true);
+  // Default geometry interpolation/quad corner mode follows original Blender.
+  slot->top_face = nullptr;
+  blender::BMO_op_exec(slot->mesh, &op);
+  blender::BMO_op_finish(slot->mesh, &op);
+  return slot->mesh->totvert > before_verts ? 0 : -3;
+}
+#endif
+
 int web_mesh_delete_face(int handle, int index);
 
 int web_mesh_select_element(int handle, int kind, int index, int selected)
