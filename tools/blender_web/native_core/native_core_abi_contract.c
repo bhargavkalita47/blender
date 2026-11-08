@@ -26,6 +26,7 @@ int main(void)
   assert(caps & BLENDER_WEB_CAP_FACE_NORMALS);
   assert(caps & BLENDER_WEB_CAP_BOUNDARY_COLLAPSE);
   assert(caps & BLENDER_WEB_CAP_NAMED_FLOAT_ATTRIBUTES);
+  assert(caps & BLENDER_WEB_CAP_BEVEL_EDGE);
   assert(web_mesh_live_count() == 0);
 
   const int plane = web_mesh_create_plane();
@@ -169,6 +170,19 @@ int main(void)
   assert(web_mesh_destroy(plane) == 0);
   assert(web_mesh_destroy(plane) < 0); /* stale token rejected */
   assert(web_mesh_position_float_count(plane) < 0);
+  assert(web_mesh_live_count() == 0);
+
+  int bevel = web_mesh_create_cube();
+  assert(bevel > 0);
+  assert(web_mesh_bevel_edge(bevel, 0, NAN, 1) == -2);
+  assert(web_mesh_bevel_edge(bevel, 0, 1.f, 1) == -2);
+  assert(web_mesh_bevel_edge(bevel, 0, .2f, 0) == -2);
+  assert(web_mesh_bevel_edge(bevel, -1, .2f, 1) == -2);
+  assert(web_mesh_bevel_edge(bevel, 0, .2f, 1) == 0);
+  assert(web_mesh_validate_topology(bevel) == 0);
+  assert(web_mesh_faces(bevel) > 6);
+  assert(web_mesh_verts(bevel) > 8);
+  assert(web_mesh_destroy(bevel) == 0);
   assert(web_mesh_live_count() == 0);
   return 0;
 }

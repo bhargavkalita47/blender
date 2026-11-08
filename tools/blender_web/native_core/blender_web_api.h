@@ -24,7 +24,8 @@ enum {
   BLENDER_WEB_CAP_NAMED_UV = 1u << 7,
   BLENDER_WEB_CAP_FACE_NORMALS = 1u << 8,
   BLENDER_WEB_CAP_BOUNDARY_COLLAPSE = 1u << 9,
-  BLENDER_WEB_CAP_NAMED_FLOAT_ATTRIBUTES = 1u << 10
+  BLENDER_WEB_CAP_NAMED_FLOAT_ATTRIBUTES = 1u << 10,
+  BLENDER_WEB_CAP_BEVEL_EDGE = 1u << 11
 };
 
 /* ABI discovery (experimental). A caller MUST test capability bits before
@@ -58,6 +59,11 @@ int web_mesh_memory_bytes(void);
  * pointers. Call count first; any change to topology invalidates old counts.
  * Return is written float/index count or a negative failure code.
  */
+/* Current BMesh iteration counts; not persistent selection IDs. */
+int web_mesh_verts(int handle);
+int web_mesh_edges(int handle);
+int web_mesh_faces(int handle);
+int web_mesh_loops(int handle);
 int web_mesh_position_float_count(int handle);
 int web_mesh_triangle_index_count(int handle);
 int web_mesh_copy_positions(int handle, float *out, int float_capacity);
@@ -85,6 +91,12 @@ int web_mesh_translate(int handle, float dx, float dy, float dz);
  * -4 means unsupported topology, -2 invalid index, -1 invalid mesh token.
  * This is not a general Blender dissolve/merge tool.
  */
+/* Optional: BLENDER_WEB_CAP_BEVEL_EDGE. Genuine BMesh bevel BMO for one
+ * manifold edge; offset 0..0.45, segments 1..4. This prototype is NOT the
+ * entire Blender bevel tool, and may not preserve all attribute domains.
+ * -4 unsupported boundary topology; invalid params -2, invalid handle -1.
+ */
+int web_mesh_bevel_edge(int handle, int edge_index, float offset, int segments);
 int web_mesh_dissolve_boundary_vertex(int handle, int vertex_index);
 int web_mesh_collapse_boundary_edge(int handle, int edge_index);
 
