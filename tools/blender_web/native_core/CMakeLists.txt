@@ -73,7 +73,7 @@ set(BLENDER_WEB_NATIVE_SOURCES
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenlib/intern/BLI_linklist.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/deform.cc
   ${BLENDER_WEB_SOURCE_ROOT}/source/blender/blenkernel/intern/curveprofile.cc
-  # Exact Blender Bezier forward-differencing helper, isolated from curve.cc.
+  # Original Blender 5.4 Alpha Bezier forward differencing, isolated from curve.cc.
   ${BLENDER_WEB_SOURCE_ROOT}/tools/blender_web/native_core/curve_forward_diff_bezier.cc
   ${BLENDER_WEB_SOURCE_ROOT}/intern/eigen/intern/linear_solver.cc
   ${BLENDER_WEB_SOURCE_ROOT}/intern/eigen/intern/matrix.cc
