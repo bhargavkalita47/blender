@@ -1,4 +1,6 @@
-# Blender for Web — Project Engineering Index
+# Blender for Web
+
+Blender for Web is a research project that brings selected Blender mesh operations to the browser. The current WebAssembly module can create a cube, extrude a face and transfer the resulting geometry to JavaScript. The timeline and engineering notes below document the work toward a browser-based modelling editor.
 
 > Status: Phase 1.1 architecture complete; Phase 1.2 static dependency research and CI verified, with native OpenColorIO/CMake linker closure still blocked. Phase 1.3.1–1.3.4 isolated Blender-owned WASM feasibility, lifetime tests, mesh transfer and real-browser compatibility passed. Phase 2.1 component classification is complete; Phase 2.2 native core extraction and Phase 2.3 native stabilization remain unfinished.
 >
