@@ -6,6 +6,23 @@
 >
 > This project deliberately retains the current alpha fork. It does **not** switch to an LTS release.
 
+## Project timeline
+
+| Phase | What changed |
+| --- | --- |
+| Starting point | Forked a pinned Blender 5.4 Alpha revision to investigate a browser-based modelling editor built on Blender’s geometry code. |
+| Dependency audit | Mapped the BMesh, BKE and BLI paths needed for basic modelling and classified desktop subsystems that could be isolated from the browser target. |
+| [Browser feasibility](https://github.com/bhargavkalita47/blender/commit/f8a1164b) | Compiled original Blender BMesh code to WebAssembly. Exercised cube creation, face extrusion, geometry transfer and repeated mesh creation and disposal in Chromium, Firefox and WebKit. |
+| [Native extraction experiments](https://github.com/bhargavkalita47/blender/tree/dev/p2-2-completion) | Working branches link selected original Blender sources in a standalone native target. The cube and extrusion fixtures passed parity against a Blender executable built from the pinned source. |
+
+**Today:** The integration branch contains the verified isolated WebAssembly path. Native extraction and broader modelling coverage are ongoing on working branches.
+
+## Engineering challenges and solutions
+
+- **Separating modelling from the desktop build.** The dependency audit distinguishes CMake target edges from source and symbol dependencies. An isolated BMesh target made it possible to test geometry without completing the full native build, where OpenColorIO configuration remains blocked.
+- **Moving geometry across the WASM boundary.** A narrow C API exposes opaque mesh handles. The browser copies vertices and indices into JavaScript-owned buffers, and lifecycle tests repeatedly create and dispose of meshes.
+- **Checking geometry against Blender.** Native extraction uses the same pinned source revision for the test target and Blender reference executable. Representative fixture comparisons make topology and geometry differences visible before broader extraction.
+
 ## Repository policy
 
 - `main`: upstream Blender fork. Do not put web-port modifications here.
